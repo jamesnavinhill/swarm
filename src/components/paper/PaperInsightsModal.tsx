@@ -61,162 +61,168 @@ export const PaperInsightsModal: React.FC<PaperModalProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-neutral-950/80 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="relative w-full max-w-5xl h-[88vh] max-h-[90vh] flex flex-col rounded-md bg-neutral-900 border border-neutral-800 shadow-2xl overflow-hidden text-neutral-100">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-neutral-800 bg-neutral-900 shrink-0">
-          {/* Title & Metadata */}
-          <div className="flex items-center gap-3">
-            <div className="p-1.5 rounded-sm bg-neutral-800 border border-neutral-700 text-neutral-300">
-              {activeMode === 'paper' ? <BookOpen className="w-4 h-4" /> : <Info className="w-4 h-4" />}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <a
-                  href="https://arxiv.org/abs/2608.26081"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm font-bold tracking-tight text-neutral-100 hover:text-amber-400 hover:underline flex items-center gap-1.5 transition-colors"
-                  title="Read ArXiv Paper (arXiv:2608.26081)"
-                >
-                  {activeMode === 'paper' ? 'SwarmWorld: MIT LAMM Scientific Compendium' : 'SwarmWorld: Simulation Guide & Rules'}
-                  <ExternalLink className="w-3.5 h-3.5 text-neutral-400" />
-                </a>
-              </div>
-              <p className="text-[11px] text-neutral-400 font-mono">
-                Subhadeep Pal, Fiona Y. Wang, Markus J. Buehler (MIT LAMM, August 2026)
-              </p>
-            </div>
+    <aside
+      aria-label="Scientific Research Compendium & Simulation Guide"
+      className="fixed top-0 right-0 h-full w-full sm:w-[500px] md:w-[560px] lg:w-[620px] z-50 flex flex-col bg-neutral-900/98 backdrop-blur-md border-l border-neutral-800 shadow-2xl shadow-black/80 animate-in slide-in-from-right duration-200 text-neutral-100"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-neutral-800 bg-neutral-900 shrink-0">
+        {/* Title & Metadata */}
+        <div className="flex items-center gap-2.5 min-w-0 pr-2">
+          <div className="p-1.5 rounded-sm bg-neutral-800 border border-neutral-700 text-neutral-300 shrink-0">
+            {activeMode === 'paper' ? <BookOpen className="w-4 h-4" /> : <Info className="w-4 h-4" />}
           </div>
-
-          {/* Center-Right Action Controls: [paper | info] icon toggle + MIT Lab Link + PDF Download + Close */}
-          <div className="flex items-center gap-2">
-            {/* Segmented Icon Toggle: [paper | info] */}
-            <div className="flex items-center p-0.5 rounded-sm bg-neutral-950 border border-neutral-800">
-              <button
-                onClick={() => {
-                  sound.playClick();
-                  setActiveMode('paper');
-                }}
-                className={`p-1.5 rounded-sm transition-colors ${
-                  activeMode === 'paper'
-                    ? 'bg-neutral-800 text-neutral-100 font-semibold'
-                    : 'text-neutral-500 hover:text-neutral-300'
-                }`}
-                title="Scientific Research Paper Compendium"
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 truncate">
+              <a
+                href="https://arxiv.org/abs/2608.26081"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs sm:text-sm font-bold tracking-tight text-neutral-100 hover:text-amber-400 hover:underline flex items-center gap-1 transition-colors truncate"
+                title="Read ArXiv Paper (arXiv:2608.26081)"
               >
-                <BookOpen className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => {
-                  sound.playClick();
-                  setActiveMode('info');
-                }}
-                className={`p-1.5 rounded-sm transition-colors ${
-                  activeMode === 'info'
-                    ? 'bg-neutral-800 text-neutral-100 font-semibold'
-                    : 'text-neutral-500 hover:text-neutral-300'
-                }`}
-                title="Game Rules & Mechanics Guide"
-              >
-                <Info className="w-4 h-4" />
-              </button>
+                <span className="truncate">
+                  {activeMode === 'paper' ? 'MIT LAMM Research Paper' : 'Simulation Guide & Rules'}
+                </span>
+                <ExternalLink className="w-3 h-3 text-neutral-400 shrink-0" />
+              </a>
             </div>
+            <p className="text-[10px] text-neutral-400 font-mono truncate">
+              Pal, Wang, Buehler (MIT LAMM, Aug 2026)
+            </p>
+          </div>
+        </div>
 
-            {/* External MIT LAMM Lab Link */}
-            <a
-              href="https://lamm.mit.edu"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-1.5 rounded-sm bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors"
-              title="Visit MIT LAMM Lab Website (lamm.mit.edu)"
-            >
-              <Globe className="w-4 h-4" />
-            </a>
-
-            {/* Direct ArXiv PDF Download */}
-            <a
-              href="https://arxiv.org/pdf/2608.26081"
-              target="_blank"
-              rel="noopener noreferrer"
-              download
-              onClick={() => sound.playSuccess()}
-              className="p-1.5 rounded-sm bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors flex items-center justify-center"
-              title="Download Full Paper PDF (arXiv:2608.26081)"
-            >
-              <Download className="w-4 h-4" />
-            </a>
-
-            {/* Close Button */}
+        {/* Center-Right Action Controls */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Segmented Icon Toggle: [paper | info] */}
+          <div className="flex items-center p-0.5 rounded-sm bg-neutral-950 border border-neutral-800">
             <button
               onClick={() => {
                 sound.playClick();
-                onClose();
+                setActiveMode('paper');
               }}
-              className="p-1.5 rounded-sm hover:bg-neutral-800 text-neutral-400 hover:text-neutral-100 transition-colors border border-transparent hover:border-neutral-700 ml-1"
-              title="Close Dialog"
+              className={`p-1 rounded-sm text-xs flex items-center gap-1 transition-all ${
+                activeMode === 'paper'
+                  ? 'bg-neutral-800 text-neutral-100 font-semibold shadow-xs'
+                  : 'text-neutral-400 hover:text-neutral-200'
+              }`}
+              title="Scientific Research Paper Compendium"
             >
-              <X className="w-4 h-4" />
+              <BookOpen className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline text-[11px]">Paper</span>
+            </button>
+            <button
+              onClick={() => {
+                sound.playClick();
+                setActiveMode('info');
+              }}
+              className={`p-1 rounded-sm text-xs flex items-center gap-1 transition-all ${
+                activeMode === 'info'
+                  ? 'bg-neutral-800 text-neutral-100 font-semibold shadow-xs'
+                  : 'text-neutral-400 hover:text-neutral-200'
+              }`}
+              title="Game Rules & Mechanics Guide"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline text-[11px]">Guide</span>
             </button>
           </div>
-        </div>
 
-        {/* Navigation Sub-Tabs (Dynamically switches based on paper vs info mode) */}
-        <div className="flex items-center gap-1.5 px-5 pt-2 border-b border-neutral-800 text-xs font-semibold overflow-x-auto shrink-0 bg-neutral-900/50">
-          {activeMode === 'paper' ? (
-            <>
-              {[
-                { id: 'overview', label: '1. Executive Abstract & Lineages' },
-                { id: 'findings', label: '2. Bounded Swarm Advantage' },
-                { id: 'inventions', label: '3. Canonical Inventions Portfolio' },
-                { id: 'methods', label: '4. Simulation Architecture & Protocol' },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    sound.playClick();
-                    setActivePaperSection(tab.id as any);
-                  }}
-                  className={`px-3 py-1.5 rounded-t-sm transition-colors border-b-2 whitespace-nowrap text-xs ${
-                    activePaperSection === tab.id
-                      ? 'text-neutral-100 border-neutral-400 bg-neutral-800/40'
-                      : 'text-neutral-400 border-transparent hover:text-neutral-200'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </>
-          ) : (
-            <>
-              {[
-                { id: 'rules', label: '1. Quickstart & Core Rules' },
-                { id: 'views', label: '2. Tour of the 6 Views' },
-                { id: 'roles', label: '3. Agent Roles & Phenotypes' },
-                { id: 'workbench', label: '4. Material Fabrication & VM' },
-                { id: 'math', label: '5. Engine Math & Equations' },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    sound.playClick();
-                    setActiveInfoSection(tab.id as any);
-                  }}
-                  className={`px-3 py-1.5 rounded-t-sm transition-colors border-b-2 whitespace-nowrap text-xs ${
-                    activeInfoSection === tab.id
-                      ? 'text-neutral-100 border-neutral-400 bg-neutral-800/40'
-                      : 'text-neutral-400 border-transparent hover:text-neutral-200'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </>
-          )}
-        </div>
+          {/* External MIT LAMM Lab Link */}
+          <a
+            href="https://lamm.mit.edu"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1.5 rounded-sm bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors"
+            title="Visit MIT LAMM Lab Website (lamm.mit.edu)"
+          >
+            <Globe className="w-3.5 h-3.5" />
+          </a>
 
-        {/* Scrollable Body Content */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs leading-relaxed text-neutral-300">
+          {/* Direct ArXiv PDF Download */}
+          <a
+            href="https://arxiv.org/pdf/2608.26081"
+            target="_blank"
+            rel="noopener noreferrer"
+            download
+            onClick={() => sound.playSuccess()}
+            className="p-1.5 rounded-sm bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors flex items-center justify-center"
+            title="Download Full Paper PDF (arXiv:2608.26081)"
+          >
+            <Download className="w-3.5 h-3.5" />
+          </a>
+
+          {/* Close Button */}
+          <button
+            onClick={() => {
+              sound.playClick();
+              onClose();
+            }}
+            className="p-1.5 rounded-sm hover:bg-neutral-800 text-neutral-400 hover:text-neutral-100 transition-colors border border-transparent hover:border-neutral-700 ml-0.5"
+            title="Close Sidesheet"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Navigation Sub-Tabs */}
+      <div className="flex items-center gap-1.5 px-4 sm:px-5 pt-2 border-b border-neutral-800 text-xs font-semibold overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] shrink-0 bg-neutral-900/50">
+        {activeMode === 'paper' ? (
+          <>
+            {[
+              { id: 'overview', label: '1. Executive Abstract' },
+              { id: 'findings', label: '2. Bounded Advantage' },
+              { id: 'inventions', label: '3. Inventions (16)' },
+              { id: 'methods', label: '4. Protocols' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  sound.playClick();
+                  setActivePaperSection(tab.id as any);
+                }}
+                className={`px-3 py-1.5 rounded-t-sm transition-colors border-b-2 whitespace-nowrap text-xs ${
+                  activePaperSection === tab.id
+                    ? 'text-neutral-100 border-neutral-400 bg-neutral-800/40'
+                    : 'text-neutral-400 border-transparent hover:text-neutral-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </>
+        ) : (
+          <>
+            {[
+              { id: 'rules', label: '1. Quickstart' },
+              { id: 'views', label: '2. Six Views' },
+              { id: 'roles', label: '3. Social Roles' },
+              { id: 'workbench', label: '4. Fabrication & VM' },
+              { id: 'math', label: '5. Engine Math' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  sound.playClick();
+                  setActiveInfoSection(tab.id as any);
+                }}
+                className={`px-3 py-1.5 rounded-t-sm transition-colors border-b-2 whitespace-nowrap text-xs ${
+                  activeInfoSection === tab.id
+                    ? 'text-neutral-100 border-neutral-400 bg-neutral-800/40'
+                    : 'text-neutral-400 border-transparent hover:text-neutral-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </>
+        )}
+      </div>
+
+      {/* Scrollable Body Content with Hidden Scrollbar */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs leading-relaxed text-neutral-300 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {/* PAPER MODE VIEWS */}
           {activeMode === 'paper' && (
             <>
@@ -594,7 +600,6 @@ export const PaperInsightsModal: React.FC<PaperModalProps> = ({ onClose }) => {
             </>
           )}
         </div>
-      </div>
-    </div>
-  );
-};
+      </aside>
+    );
+  };

@@ -130,6 +130,26 @@ function MainApp() {
     forceUpdate();
   };
 
+  const handleSelectAgent = (agent: Agent | null) => {
+    if (agent) {
+      setIsPaperModalOpen(false);
+    }
+    setSelectedAgent(agent);
+  };
+
+  const handleSelectArtifact = (artifact: Artifact | null) => {
+    if (artifact) {
+      setIsPaperModalOpen(false);
+    }
+    setSelectedArtifact(artifact);
+  };
+
+  const handleOpenPaperModal = () => {
+    setSelectedAgent(null);
+    setSelectedArtifact(null);
+    setIsPaperModalOpen(true);
+  };
+
   return (
     <div className="h-screen overflow-hidden flex flex-col bg-neutral-950 text-neutral-100 font-sans select-none">
       {/* Universal Header */}
@@ -141,7 +161,7 @@ function MainApp() {
         onTogglePlay={handleTogglePlay}
         onStepTick={handleStepTick}
         onResetWorld={handleResetWorld}
-        onOpenPaperModal={() => setIsPaperModalOpen(true)}
+        onOpenPaperModal={handleOpenPaperModal}
         onRealmChange={handleRealmChange}
         onConditionChange={handleConditionChange}
         onPopulationChange={handlePopulationChange}
@@ -155,8 +175,8 @@ function MainApp() {
           <div className="flex-1 min-h-0 w-full h-full">
             <WorldViewport
               engine={engine}
-              onSelectAgent={setSelectedAgent}
-              onSelectArtifact={setSelectedArtifact}
+              onSelectAgent={handleSelectAgent}
+              onSelectArtifact={handleSelectArtifact}
               selectedAgentId={selectedAgent?.id}
               selectedArtifactId={selectedArtifact?.id}
             />

@@ -5,7 +5,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, Layers, Minus, Plus, RotateCcw } from 'lucide-react';
+import { Minus, Plus, RotateCcw } from 'lucide-react';
 import { sound } from '../../audio/SoundSynthesizer';
 import { REALM_CONFIGS } from '../../simulation/data/realmsData';
 import { SwarmEngine } from '../../simulation/engine/SwarmEngine';
@@ -332,58 +332,8 @@ export const WorldViewport: React.FC<WorldViewportProps> = ({
 
   return (
     <div ref={containerRef} className="relative w-full h-full select-none overflow-hidden rounded-md border border-neutral-800 bg-neutral-950">
-      {/* Top Floating Field Overlay Hover Popover */}
-      <div className="absolute top-3 left-3 z-20 group">
-        {/* Trigger Pill */}
-        <button
-          id="btn-field-popover-trigger"
-          className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-neutral-900 border border-neutral-800 shadow-md text-xs font-medium text-neutral-200 hover:bg-neutral-800 transition-all cursor-pointer"
-        >
-          <Layers className="w-3.5 h-3.5 text-neutral-400" />
-          <span className="text-neutral-400 font-normal">Field:</span>
-          <span className="font-semibold capitalize text-neutral-100">{overlayMode}</span>
-          <ChevronDown className="w-3 h-3 text-neutral-500 transition-transform duration-200 group-hover:rotate-180" />
-        </button>
-
-        {/* Hover Popover Menu */}
-        <div className="absolute top-full left-0 mt-1.5 w-44 rounded-md bg-neutral-900 border border-neutral-800 p-1.5 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 flex flex-col gap-1 z-30 pointer-events-auto">
-          <div className="px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-neutral-500 border-b border-neutral-800">
-            Environmental Layers
-          </div>
-          {[
-            { id: 'natural', label: 'Natural / Raw', dot: 'bg-amber-500' },
-            { id: 'moisture', label: 'Moisture', dot: 'bg-blue-500' },
-            { id: 'contamination', label: 'Contamination', dot: 'bg-rose-500' },
-            { id: 'temperature', label: 'Temperature', dot: 'bg-orange-500' },
-            { id: 'nutrients', label: 'Nutrients', dot: 'bg-emerald-500' },
-          ].map(item => (
-            <button
-              key={item.id}
-              id={`overlay-btn-${item.id}`}
-              onClick={() => {
-                sound.playClick();
-                setOverlayMode(item.id as FieldOverlayMode);
-              }}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-sm text-xs text-left transition-colors ${
-                overlayMode === item.id
-                  ? 'bg-neutral-800 text-neutral-100 font-semibold border border-neutral-700 shadow-xs'
-                  : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${item.dot}`}></span>
-                <span>{item.label}</span>
-              </div>
-              {overlayMode === item.id && (
-                <span className="w-1.5 h-1.5 rounded-full bg-neutral-200"></span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Floating Zoom, Reset & Disturbance Controls */}
-      <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5 p-1 rounded-md bg-neutral-900 border border-neutral-800 shadow-md">
+      {/* Floating Viewport Controls & Status HUD */}
+      <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5 p-1 rounded-md bg-neutral-900 border border-neutral-800 shadow-md w-32">
         {/* Row of 3 square icon buttons: Zoom In, Zoom Out, Reset View */}
         <div className="flex items-center gap-1">
           <button
@@ -392,10 +342,10 @@ export const WorldViewport: React.FC<WorldViewportProps> = ({
               sound.playClick();
               setZoom(z => Math.min(4.0, z * 1.25));
             }}
-            className="w-7 h-7 flex items-center justify-center rounded-sm bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 transition-colors"
+            className="flex-1 h-6.5 flex items-center justify-center rounded-sm bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 transition-colors"
             title="Zoom In"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3 h-3" />
           </button>
           <button
             id="btn-zoom-out"
@@ -403,10 +353,10 @@ export const WorldViewport: React.FC<WorldViewportProps> = ({
               sound.playClick();
               setZoom(z => Math.max(0.4, z * 0.8));
             }}
-            className="w-7 h-7 flex items-center justify-center rounded-sm bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 transition-colors"
+            className="flex-1 h-6.5 flex items-center justify-center rounded-sm bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 transition-colors"
             title="Zoom Out"
           >
-            <Minus className="w-3.5 h-3.5" />
+            <Minus className="w-3 h-3" />
           </button>
           <button
             id="btn-reset-view"
@@ -415,26 +365,75 @@ export const WorldViewport: React.FC<WorldViewportProps> = ({
               setZoom(1.0);
               setPan({ x: 0, y: 0 });
             }}
-            className="w-7 h-7 flex items-center justify-center rounded-sm bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 transition-colors"
+            className="flex-1 h-6.5 flex items-center justify-center rounded-sm bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 transition-colors"
             title="Reset View"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <RotateCcw className="w-3 h-3" />
           </button>
         </div>
 
-        {/* Stress Pulse Button - Exact matching width to the 3 icons above */}
+        {/* Stress Pulse Button */}
         <button
           id="btn-trigger-pulse"
           onClick={() => {
             sound.playDisturbanceAlert();
             engine.triggerSeededDisturbance();
           }}
-          className="w-full h-7 px-2 flex items-center justify-center gap-1.5 rounded-sm bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 text-xs font-medium transition-colors shadow-xs"
+          className="w-full h-6.5 px-1.5 flex items-center justify-center gap-1.5 rounded-sm bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 text-[11px] font-medium transition-colors shadow-xs"
           title="Trigger Seeded Disturbance Pulse"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
           <span>Stress Pulse</span>
         </button>
+
+        {/* Three Counters Black BG Section */}
+        <div className="p-1.5 rounded-sm bg-neutral-950 border border-neutral-800 font-mono text-[10px] text-neutral-300 space-y-1 select-none">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-neutral-400">
+              <span className="w-1.5 h-1.5 rounded-xs bg-[#4a7c59] shrink-0"></span>
+              <span>C1 Artifact</span>
+            </span>
+            <strong className="text-neutral-100 font-semibold tabular-nums">
+              {engine.agents.filter(a => a.phenotype === 'C1_artifact_centered').length}
+            </strong>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-neutral-400">
+              <span className="w-1.5 h-1.5 rounded-xs bg-[#5c7c99] shrink-0"></span>
+              <span>C2 Mobile</span>
+            </span>
+            <strong className="text-neutral-100 font-semibold tabular-nums">
+              {engine.agents.filter(a => a.phenotype === 'C2_mobile_exploration').length}
+            </strong>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-neutral-400">
+              <span className="w-1.5 h-1.5 rotate-45 bg-[#bfa15f] inline-block shrink-0"></span>
+              <span>Inventions</span>
+            </span>
+            <strong className="text-neutral-100 font-semibold tabular-nums">
+              {engine.artifacts.length}
+            </strong>
+          </div>
+        </div>
+
+        {/* Field Selection Underneath Counters - Selector Direct */}
+        <select
+          id="select-overlay-layer"
+          value={overlayMode}
+          onChange={(e) => {
+            sound.playClick();
+            setOverlayMode(e.target.value as FieldOverlayMode);
+          }}
+          className="w-full h-6.5 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-200 text-[11px] font-medium rounded-sm px-2 focus:outline-none focus:border-neutral-500 cursor-pointer capitalize text-center transition-colors"
+          title="Environmental Layer Selection"
+        >
+          <option value="natural">Natural</option>
+          <option value="moisture">Moisture</option>
+          <option value="contamination">Toxins</option>
+          <option value="temperature">Thermal</option>
+          <option value="nutrients">Nutrients</option>
+        </select>
       </div>
 
       {/* Main Interactive Canvas */}
@@ -446,25 +445,6 @@ export const WorldViewport: React.FC<WorldViewportProps> = ({
         onWheel={handleWheel}
         className="w-full h-full cursor-grab active:cursor-grabbing touch-none"
       />
-
-      {/* Bottom Status Legend */}
-      <div className="absolute bottom-3 left-3 right-3 z-10 pointer-events-none flex items-center justify-between px-3 py-1.5 rounded-md bg-neutral-900/90 border border-neutral-800 text-xs text-neutral-400">
-        <div className="flex items-center gap-4 font-mono text-[11px]">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-sm bg-[#4a7c59]"></span>
-            <span>C1 Artifact Centered ({engine.agents.filter(a => a.phenotype === 'C1_artifact_centered').length})</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-sm bg-[#5c7c99]"></span>
-            <span>C2 Mobile Explorers ({engine.agents.filter(a => a.phenotype === 'C2_mobile_exploration').length})</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rotate-45 bg-[#bfa15f] inline-block"></span>
-            <span>Inventions ({engine.artifacts.length})</span>
-          </div>
-        </div>
-        <span className="hidden sm:inline font-mono text-[11px] text-neutral-500">Drag to Pan • Wheel to Zoom • Click Entity to Inspect</span>
-      </div>
     </div>
   );
 };
