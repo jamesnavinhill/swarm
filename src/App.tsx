@@ -5,6 +5,7 @@
 
 import React, { useEffect, useReducer, useRef, useState } from 'react';
 import { sound } from './audio/SoundSynthesizer';
+import { AppErrorBoundary } from './components/common/AppErrorBoundary';
 import { ResearchCampaign } from './components/campaign/ResearchCampaign';
 import { ActiveView, Header } from './components/common/Header';
 import { ThemeProvider, useTheme } from './components/common/ThemeContext';
@@ -246,8 +247,10 @@ function MainApp() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <MainApp />
-    </ThemeProvider>
+    <AppErrorBoundary>
+      <ThemeProvider>
+        <MainApp />
+      </ThemeProvider>
+    </AppErrorBoundary>
   );
 }

@@ -24,6 +24,13 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ engine }) =>
   const history = engine.metricsHistory;
   const currentMetric = history.length > 0 ? history[history.length - 1] : null;
 
+  // Downsample long histories so per-tick flex-1 bars stay visible. Without
+  // this, past ~250 ticks each bar collapses to <1px and the frontier chart
+  // renders as an empty box despite data being present.
+  const MAX_BARS = 120;
+  const barStep = Math.max(1, Math.ceil(history.length / MAX_BARS));
+  const displayHistory = barStep === 1 ? history : history.filter((_, i) => i % barStep === 0);
+
   const handleRunAssay = () => {
     setIsRunningAssay(true);
     sound.playDisturbanceAlert();
@@ -134,7 +141,7 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ engine }) =>
               Running Discovery-Frontier & Portfolio Trajectory
             </h3>
             <div className="h-56 flex items-end gap-1 pt-6 px-2 border-b border-l border-neutral-800">
-              {history.map((m, i) => (
+              {displayHistory.map((m, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end group relative">
                   {/* Tooltip */}
                   <div className="opacity-0 group-hover:opacity-100 absolute bottom-full mb-2 bg-neutral-950 text-neutral-200 text-[10px] p-1.5 rounded-sm border border-neutral-800 pointer-events-none whitespace-nowrap z-20 font-mono">

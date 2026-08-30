@@ -194,7 +194,8 @@ export const WorldViewport: React.FC<WorldViewportProps> = ({
       ctx.fillStyle = mode === 'dark' ? '#e2e8f0' : '#334155';
       ctx.font = `600 ${Math.max(8, cellSize * 0.6)}px "JetBrains Mono", monospace`;
       ctx.textAlign = 'center';
-      ctx.fillText(`A${art.id.slice(-3)}`, 0, dSize + cellSize * 0.8);
+      const artIndex = engine.artifacts.indexOf(art);
+      ctx.fillText(`A${String(artIndex + 1).padStart(2, '0')}`, 0, dSize + cellSize * 0.8);
 
       ctx.restore();
     }

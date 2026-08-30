@@ -174,7 +174,7 @@ export const PaperInsightsModal: React.FC<PaperModalProps> = ({ onClose }) => {
             {[
               { id: 'overview', label: '1. Executive Abstract' },
               { id: 'findings', label: '2. Bounded Advantage' },
-              { id: 'inventions', label: '3. Inventions (16)' },
+              { id: 'inventions', label: '3. Inventions (5 of 16)' },
               { id: 'methods', label: '4. Protocols' },
             ].map((tab) => (
               <button
@@ -300,7 +300,7 @@ export const PaperInsightsModal: React.FC<PaperModalProps> = ({ onClose }) => {
               {activePaperSection === 'inventions' && (
                 <div className="space-y-3.5">
                   <p className="text-xs text-neutral-400">
-                    16 canonical agent-invented technologies extracted from experimental runs across BioFoundry, AshenRealm, and Protein Realms:
+                    5 canonical agent-invented technologies represented here (of the 16 showcased in the published paper Figures 7, 22 and 24), spanning BioFoundry, AshenRealm, and Protein Realms:
                   </p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

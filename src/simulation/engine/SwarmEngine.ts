@@ -10,6 +10,7 @@ import {
   BehavioralPhenotype,
   BehavioralRole,
   ConditionType,
+  ControllerProgram,
   DisturbancePulse,
   EnvironmentalFields,
   FeedstockType,
@@ -420,7 +421,14 @@ export class SwarmEngine {
     const nearestArtifact = this.findNearestArtifact(agent.x, agent.y);
     const distToArtifact = nearestArtifact ? Math.hypot(agent.x - nearestArtifact.x, agent.y - nearestArtifact.y) : 999;
 
-    if (distToArtifact < 4 && (this.condition === 'full_culture' || this.condition === 'no_communication')) {
+    // Explicit messaging requires full_culture. Cross-agent program forking
+    // requires full_culture or no_communication (paper: inheritance persists
+    // without direct communication but is disabled in no_explicit_culture).
+    // Physical artifact interaction (inspect/repair/colocate) remains available
+    // in every shared-world condition via stigmergy.
+    const canMessage = this.condition === 'full_culture';
+
+    if (distToArtifact < 4) {
       // Artifact-centered caretaker/forger
       plan.push('INSPECT_ARTIFACT');
       if (this.condition === 'full_culture' && rnd > 0.4) {
@@ -555,7 +563,7 @@ export class SwarmEngine {
     const properties = evaluateMaterialRecipe(recipe, this.realm);
     agent.testsPerformed++;
 
-    const initialProgram = this.createDefaultController(this.realm);
+    const { program: initialProgram, meta } = this.createDefaultController(this.realm);
     agent.programsAuthored++;
 
     const artifactName = this.generateArtifactName(recipe);
@@ -570,9 +578,9 @@ export class SwarmEngine {
       builtTick: this.tick,
       health: 0.95,
       materialBatch: { recipe, properties },
-      claimedFunction: `Autonomous bioinspired system buffering moisture and remediating contamination.`,
-      architecture: `Interconnected cellular matrix with active straight-line VM aperture regulation.`,
-      bioInspiration: `Natural biomineralized lattice hierarchy.`,
+      claimedFunction: meta.claimedFunction,
+      architecture: meta.architecture,
+      bioInspiration: meta.bioInspiration,
       program: initialProgram,
       registers: createDefaultRegisters(),
       operationalFlux: {
@@ -624,28 +632,36 @@ export class SwarmEngine {
     const nearest = this.findNearestArtifact(agent.x, agent.y);
     if (!nearest || !nearest.program) return;
 
-    // Fork program and edit instructions (Section S2.4)
+    // Fork program and edit instructions (Section S2.4). Cross-agent program
+    // inheritance is only available when explicit culture is enabled.
+    if (this.condition !== 'full_culture' && this.condition !== 'no_communication') return;
+
     const parentProg = nearest.program;
     const forkedInstructions: VMInstruction[] = parentProg.instructions.map(inst => ({ ...inst }));
 
-    // Mutate an instruction parameter
+    // Mutate exactly one instruction parameter (paper requires >=1 instruction diff).
     if (forkedInstructions.length > 0) {
       const targetIdx = Math.floor(this.prng(this.tick) * forkedInstructions.length);
       forkedInstructions[targetIdx].constantVal = Number((this.prng(this.tick * 3) * 0.8 + 0.1).toFixed(3));
     }
 
     const childProgramId = generateProgramId(forkedInstructions);
-    const childProg = {
+    const priorInstalls = parentProg.installCount || 1;
+    // Name the child from the parent's *base* name with the new version number,
+    // rather than re-appending a suffix (prevents runaway "v2 v2 v2 ..." names).
+    const baseName = parentProg.name.replace(/\s+v\d+$/, '');
+    const childProg: ControllerProgram = {
       id: childProgramId,
-      name: `${parentProg.name} v${(parentProg.installCount || 1) + 1}`,
+      name: `${baseName} v${priorInstalls + 1}`,
       authors: [...new Set([...parentProg.authors, agent.id])],
       instructions: forkedInstructions,
       firstTick: this.tick,
       parentId: parentProg.id,
       installCount: 1,
-      codeDiffCount: 2,
+      codeDiffCount: 1,
     };
 
+    parentProg.installCount = priorInstalls + 1;
     nearest.program = childProg;
     agent.programsAuthored++;
 
@@ -669,26 +685,73 @@ export class SwarmEngine {
     });
   }
 
-  private createDefaultController(realm: RealmType) {
-    const instructions: VMInstruction[] = [
-      { op: 'READ_SENSOR', targetReg: 0, sensorName: 'moisture' },
-      { op: 'READ_SENSOR', targetReg: 1, sensorName: 'contamination' },
-      { op: 'CMP_GT', targetReg: 2, src1: 1, constantVal: 0.15 },
-      { op: 'MUL', targetReg: 3, src1: 2, constantVal: 0.05 },
-      { op: 'ACTUATE', targetReg: 3, actuatorName: 'remediate' },
-      { op: 'READ_SENSOR', targetReg: 4, sensorName: 'health' },
-      { op: 'CMP_GT', targetReg: 5, src1: 4, constantVal: 0.7 },
-      { op: 'ACTUATE', targetReg: 5, actuatorName: 'heal' },
-    ];
+  private createDefaultController(realm: RealmType): { program: ControllerProgram; meta: { claimedFunction: string; architecture: string; bioInspiration: string } } {
+    const instructions: VMInstruction[] =
+      realm === 'biofoundry'
+        ? [
+            { op: 'READ_SENSOR', targetReg: 0, sensorName: 'moisture' },
+            { op: 'READ_SENSOR', targetReg: 1, sensorName: 'contamination' },
+            { op: 'CMP_GT', targetReg: 2, src1: 1, constantVal: 0.15 },
+            { op: 'MUL', targetReg: 3, src1: 2, constantVal: 0.05 },
+            { op: 'ACTUATE', targetReg: 3, actuatorName: 'remediate' },
+            { op: 'READ_SENSOR', targetReg: 4, sensorName: 'health' },
+            { op: 'CMP_GT', targetReg: 5, src1: 4, constantVal: 0.7 },
+            { op: 'ACTUATE', targetReg: 5, actuatorName: 'heal' },
+          ]
+        : realm === 'ashenrealm'
+        ? [
+            { op: 'READ_SENSOR', targetReg: 0, sensorName: 'temperature' },
+            { op: 'READ_SENSOR', targetReg: 1, sensorName: 'contamination' },
+            { op: 'CMP_GT', targetReg: 2, src1: 0, constantVal: 0.6 },
+            { op: 'MUL', targetReg: 3, src1: 2, constantVal: 0.05 },
+            { op: 'ACTUATE', targetReg: 3, actuatorName: 'adjust_pores' },
+            { op: 'READ_SENSOR', targetReg: 4, sensorName: 'health' },
+            { op: 'CMP_GT', targetReg: 5, src1: 4, constantVal: 0.7 },
+            { op: 'ACTUATE', targetReg: 5, actuatorName: 'grow' },
+          ]
+        : [
+            { op: 'READ_SENSOR', targetReg: 0, sensorName: 'nutrients' },
+            { op: 'READ_SENSOR', targetReg: 1, sensorName: 'contamination' },
+            { op: 'CMP_GT', targetReg: 2, src1: 1, constantVal: 0.2 },
+            { op: 'MUL', targetReg: 3, src1: 2, constantVal: 0.05 },
+            { op: 'ACTUATE', targetReg: 3, actuatorName: 'remediate' },
+            { op: 'READ_SENSOR', targetReg: 4, sensorName: 'health' },
+            { op: 'CMP_GT', targetReg: 5, src1: 4, constantVal: 0.65 },
+            { op: 'ACTUATE', targetReg: 5, actuatorName: 'heal' },
+          ];
 
-    return {
+    const meta =
+      realm === 'biofoundry'
+        ? {
+            claimedFunction: 'Porous bio-active lattice buffering local moisture and chemically remediating contamination plumes.',
+            architecture: 'Interconnected microporous chitin-cellulose matrix with VM-regulated capillary apertures.',
+            bioInspiration: 'Arthropod cuticle exoskeleton and mycelial hyphal intergrowth.',
+            name: 'Adaptive Chitin Remediation Controller',
+          }
+        : realm === 'ashenrealm'
+        ? {
+            claimedFunction: 'Vitrified thermal baffle adaptively venting pyroclastic heat surges and filtering ashfall particulates.',
+            architecture: 'Segmented obsidian-iron lattice with thermally actuated pore dilation joints.',
+            bioInspiration: 'Hydrothermal vent snail iron-sulfide scales and basalt columnar jointing.',
+            name: 'Thermal-Gated Pore Vent Controller',
+          }
+        : {
+            claimedFunction: 'Protein-matrix composite maintaining protease resistance and hydrodynamic shear stability during solvent surges.',
+            architecture: 'Aligned collagen fibril arrays crosslinked within a hydrated cellulose hydrogel scaffold.',
+            bioInspiration: 'Mammalian tendon hierarchy and mussel foot protein adhesion plaques.',
+            name: 'Protein Matrix Integrity Controller',
+          };
+
+    const program: ControllerProgram = {
       id: generateProgramId(instructions),
-      name: 'Adaptive Chitin Remediation Controller',
+      name: meta.name,
       authors: ['agent_000000'],
       instructions,
       firstTick: this.tick,
       installCount: 1,
     };
+
+    return { program, meta };
   }
 
   private executeArtifactVirtualMachines() {
@@ -868,8 +931,11 @@ export class SwarmEngine {
     this.discoveryAreaSum += this.runningPeakPerformance;
     const discoveryFrontierAUC = Number((this.discoveryAreaSum / Math.max(1, this.tick)).toFixed(4));
 
-    // Portfolio resilience: peak service fingerprints
+    // Portfolio resilience per paper S2.9: over lifetime-peak service
+    // fingerprints with balance weighting mean * (0.5 + 0.5 * min/mean).
+    // Does not directly reward artifact count.
     let portfolioResilience = 0;
+    let currentServiceCoverage = 0;
     if (activeArts.length > 0) {
       const cPeak = [
         Math.max(...activeArts.map(a => a.serviceLevels.moistureBuffering)),
@@ -880,7 +946,23 @@ export class SwarmEngine {
       ];
       const meanPeak = cPeak.reduce((a, b) => a + b, 0) / cPeak.length;
       const minPeak = Math.min(...cPeak);
-      portfolioResilience = Number((meanPeak * (1 + (minPeak / (meanPeak || 1))) * 0.5 * 0.35).toFixed(4));
+      const balance = meanPeak > 0 ? minPeak / meanPeak : 0;
+      portfolioResilience = Number((meanPeak * (0.5 + 0.5 * balance)).toFixed(4));
+
+      // Current balanced service coverage Q(t): same formula over *current*
+      // (health-attenuated) service levels, not lifetime peaks.
+      const healthOf = (a: Artifact) => Math.max(0, Math.min(1, a.health));
+      const cCurrent = [
+        Math.max(...activeArts.map(a => a.serviceLevels.moistureBuffering * healthOf(a))),
+        Math.max(...activeArts.map(a => a.serviceLevels.contaminationRemediation * healthOf(a))),
+        Math.max(...activeArts.map(a => a.serviceLevels.structuralContinuity * healthOf(a))),
+        Math.max(...activeArts.map(a => a.serviceLevels.thermalShielding * healthOf(a))),
+        Math.max(...activeArts.map(a => a.serviceLevels.adaptiveHealing * healthOf(a))),
+      ];
+      const meanCur = cCurrent.reduce((a, b) => a + b, 0) / cCurrent.length;
+      const minCur = Math.min(...cCurrent);
+      const balanceCur = meanCur > 0 ? minCur / meanCur : 0;
+      currentServiceCoverage = Number((meanCur * (0.5 + 0.5 * balanceCur)).toFixed(4));
     }
 
     // Validated Inventions count
@@ -914,18 +996,52 @@ export class SwarmEngine {
       R4_surveyor: this.agents.filter(a => a.role === 'R4_surveyor').length,
     };
 
+    // Cross-agent fork fraction: share of program-fork provenance edges whose
+    // child authors include an agent not present in the parent program's author set.
+    const forkEdges = this.provenanceGraph.edges.filter(e => e.type === 'forked');
+    let crossAgentForkCount = 0;
+    for (const e of forkEdges) {
+      const parent = this.provenanceGraph.nodes.find(n => n.id === e.source);
+      const child = this.provenanceGraph.nodes.find(n => n.id === e.target);
+      if (!parent || !child) continue;
+      const parentAuthors = new Set(parent.authors ?? []);
+      if ((child.authors ?? []).some(a => !parentAuthors.has(a))) crossAgentForkCount++;
+    }
+    const crossAgentForkFraction = forkEdges.length > 0 ? Number((crossAgentForkCount / forkEdges.length).toFixed(3)) : 0;
+
+    // Max executable-lineage fork depth: longest path in the program-fork DAG.
+    const childrenOf = new Map<string, string[]>();
+    for (const e of forkEdges) {
+      const list = childrenOf.get(e.source) ?? [];
+      list.push(e.target);
+      childrenOf.set(e.source, list);
+    }
+    const depthCache = new Map<string, number>();
+    const depthOf = (id: string, seen: Set<string>): number => {
+      if (depthCache.has(id)) return depthCache.get(id)!;
+      if (seen.has(id)) return 0; // safety against cycles (shouldn't exist in a DAG)
+      seen.add(id);
+      const kids = childrenOf.get(id) ?? [];
+      const d = kids.length === 0 ? 0 : 1 + Math.max(...kids.map(k => depthOf(k, seen)));
+      seen.delete(id);
+      depthCache.set(id, d);
+      return d;
+    };
+    const programIds = new Set(forkEdges.flatMap(e => [e.source, e.target]));
+    const maxForkDepth = programIds.size === 0 ? 0 : Math.max(...[...programIds].map(id => depthOf(id, new Set())));
+
     const metric: SimulationMetrics = {
       tick: this.tick,
       bestArtifactPerformance: Number(bestScore.toFixed(4)),
       discoveryFrontierAUC,
       portfolioResilience,
-      currentServiceCoverage: Number((portfolioResilience * 0.85).toFixed(4)),
+      currentServiceCoverage,
       validatedInventionsCount,
       multiAgentArtifactFraction,
-      crossAgentForkFraction: this.condition === 'full_culture' ? 0.48 : 0,
-      artifactContactAUC: Number((phenotypeCounts.C1_artifact_centered / Math.max(1, this.populationN) * 0.6).toFixed(3)),
-      spatialEntropy: Number((0.85 - (this.artifacts.length * 0.002)).toFixed(3)),
-      maxForkDepth: this.condition === 'full_culture' ? Math.min(12, Math.floor(this.tick / 180) + 1) : 1,
+      crossAgentForkFraction,
+      artifactContactAUC: Number((phenotypeCounts.C1_artifact_centered / Math.max(1, this.populationN)).toFixed(3)),
+      spatialEntropy: Number(Math.max(0, Math.min(1, 0.85 - this.artifacts.length * 0.002)).toFixed(3)),
+      maxForkDepth,
       activeArtifactsCount: this.artifacts.length,
       phenotypeCounts,
       roleCounts,
