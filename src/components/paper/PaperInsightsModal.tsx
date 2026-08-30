@@ -9,6 +9,7 @@ import {
   Cpu,
   Download,
   ExternalLink,
+  FileText,
   GitBranch,
   Globe,
   HelpCircle,
@@ -25,13 +26,17 @@ import React, { useState } from 'react';
 import { sound } from '../../audio/SoundSynthesizer';
 import { HISTORICAL_INVENTIONS } from '../../simulation/data/realmsData';
 
+// Code-split PDF.js (and its worker setup) out of the initial bundle —
+// it is only fetched when the Full Paper tab is first opened.
+const PdfReader = React.lazy(() => import('./PdfReader').then(m => ({ default: m.PdfReader })));
+
 interface PaperModalProps {
   onClose: () => void;
 }
 
 export const PaperInsightsModal: React.FC<PaperModalProps> = ({ onClose }) => {
   const [activeMode, setActiveMode] = useState<'paper' | 'info'>('paper');
-  const [activePaperSection, setActivePaperSection] = useState<'overview' | 'findings' | 'inventions' | 'methods'>('overview');
+  const [activePaperSection, setActivePaperSection] = useState<'fullpaper' | 'overview' | 'findings' | 'inventions' | 'methods'>('fullpaper');
   const [activeInfoSection, setActiveInfoSection] = useState<'rules' | 'views' | 'roles' | 'workbench' | 'math'>('rules');
 
   const handleDownloadPaperSummary = () => {
@@ -60,10 +65,17 @@ export const PaperInsightsModal: React.FC<PaperModalProps> = ({ onClose }) => {
     URL.revokeObjectURL(url);
   };
 
+  // The full-paper PDF tab gets a wide reading pane; the curated paper/guide
+  // tabs stay narrow so the app remains usable side-by-side.
+  const isWideReader = activeMode === 'paper' && activePaperSection === 'fullpaper';
+  const widthClass = isWideReader
+    ? 'sm:w-[640px] md:w-[760px] lg:w-[880px] xl:w-[980px]'
+    : 'sm:w-[480px] md:w-[520px] lg:w-[560px]';
+
   return (
     <aside
       aria-label="Scientific Research Compendium & Simulation Guide"
-      className="fixed top-0 right-0 h-full w-full sm:w-[500px] md:w-[560px] lg:w-[620px] z-50 flex flex-col bg-neutral-900/98 backdrop-blur-md border-l border-neutral-800 shadow-2xl shadow-black/80 animate-in slide-in-from-right duration-200 text-neutral-100"
+      className={`fixed top-0 right-0 h-full w-full ${widthClass} z-50 flex flex-col bg-neutral-900/98 backdrop-blur-md border-l border-neutral-800 shadow-2xl shadow-black/80 animate-in slide-in-from-right duration-200 text-neutral-100 transition-[width] ease-in-out`}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-neutral-800 bg-neutral-900 shrink-0">
@@ -95,15 +107,33 @@ export const PaperInsightsModal: React.FC<PaperModalProps> = ({ onClose }) => {
 
         {/* Center-Right Action Controls */}
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* Full Paper reader (header-level, wide pane) */}
+          <button
+            onClick={() => {
+              sound.playClick();
+              setActiveMode('paper');
+              setActivePaperSection('fullpaper');
+            }}
+            className={`p-1.5 rounded-sm border transition-colors ${
+              activeMode === 'paper' && activePaperSection === 'fullpaper'
+                ? 'bg-neutral-100 text-neutral-950 border-neutral-100'
+                : 'bg-neutral-950 hover:bg-neutral-800 border-neutral-800 text-neutral-400 hover:text-neutral-200'
+            }`}
+            title="Read the Full Paper (PDF)"
+          >
+            <FileText className="w-3.5 h-3.5" />
+          </button>
+
           {/* Segmented Icon Toggle: [paper | info] */}
           <div className="flex items-center p-0.5 rounded-sm bg-neutral-950 border border-neutral-800">
             <button
               onClick={() => {
                 sound.playClick();
                 setActiveMode('paper');
+                if (activePaperSection === 'fullpaper') setActivePaperSection('overview');
               }}
               className={`p-1 rounded-sm text-xs flex items-center gap-1 transition-all ${
-                activeMode === 'paper'
+                activeMode === 'paper' && activePaperSection !== 'fullpaper'
                   ? 'bg-neutral-800 text-neutral-100 font-semibold shadow-xs'
                   : 'text-neutral-400 hover:text-neutral-200'
               }`}
@@ -172,9 +202,9 @@ export const PaperInsightsModal: React.FC<PaperModalProps> = ({ onClose }) => {
         {activeMode === 'paper' ? (
           <>
             {[
-              { id: 'overview', label: '1. Executive Abstract' },
+              { id: 'overview', label: '1. Abstract' },
               { id: 'findings', label: '2. Bounded Advantage' },
-              { id: 'inventions', label: '3. Inventions (5 of 16)' },
+              { id: 'inventions', label: '3. Inventions (5/16)' },
               { id: 'methods', label: '4. Protocols' },
             ].map((tab) => (
               <button
@@ -221,7 +251,38 @@ export const PaperInsightsModal: React.FC<PaperModalProps> = ({ onClose }) => {
         )}
       </div>
 
-      {/* Scrollable Body Content with Hidden Scrollbar */}
+      {/* Full-Paper PDF reader: dedicated flat viewer (no padding) */}
+      {activeMode === 'paper' && activePaperSection === 'fullpaper' ? (
+        <div className="flex-1 min-h-0 flex flex-col bg-neutral-950">
+          <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-2 border-b border-neutral-800 bg-neutral-900 shrink-0 text-[11px] text-neutral-400">
+            <span className="truncate">
+              Full text: <span className="text-neutral-200 font-semibold">SwarmWorld: Stigmergic Technological Evolution in Societies of Language-Model Agents</span>
+              <span className="hidden sm:inline text-neutral-500"> · Pal, Wang, Buehler (MIT LAMM, arXiv:2608.26081)</span>
+            </span>
+            <a
+              href="/paper/swarmworld-arxiv-2608.26081.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => sound.playClick()}
+              className="px-2.5 py-1 rounded-sm bg-neutral-100 hover:bg-white text-neutral-950 text-[11px] font-semibold flex items-center gap-1.5 shrink-0 transition-colors"
+              title="Open the raw PDF in a new tab"
+            >
+              <Download className="w-3 h-3" />
+              Open PDF
+            </a>
+          </div>
+          <React.Suspense
+            fallback={
+              <div className="flex-1 flex items-center justify-center text-xs text-neutral-500 bg-neutral-950">
+                Loading reader…
+              </div>
+            }
+          >
+            <PdfReader url="/paper/swarmworld-arxiv-2608.26081.pdf" />
+          </React.Suspense>
+        </div>
+      ) : (
+      /* Scrollable Body Content with Hidden Scrollbar */
       <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs leading-relaxed text-neutral-300 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {/* PAPER MODE VIEWS */}
           {activeMode === 'paper' && (
@@ -600,6 +661,7 @@ export const PaperInsightsModal: React.FC<PaperModalProps> = ({ onClose }) => {
             </>
           )}
         </div>
+      )}
       </aside>
     );
   };

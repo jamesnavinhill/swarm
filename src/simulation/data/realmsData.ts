@@ -5,6 +5,12 @@
 
 import { Artifact, CampaignMission, FeedstockType, LeaderboardEntry, RealmType, TerrainType, WorldFacility } from '../../types';
 
+/** Per-field physics per paper S2.2.3: F(t+1) = (1-λ)·[F(t) + D·Δ4F(t)] + s(terrain). */
+export interface FieldPhysics {
+  diffusion: number; // D
+  decay: number;     // λ (fraction of the diffused value lost per tick)
+}
+
 export interface RealmConfig {
   id: RealmType;
   name: string;
@@ -19,6 +25,10 @@ export interface RealmConfig {
   feedstocks: { type: FeedstockType; label: string; color: string; description: string }[];
   facilities: WorldFacility[];
   disturbanceTypes: { name: string; deltas: Record<string, number>; radius: number }[];
+  /** Environmental field physics for the four named fields (D, λ per S2.2.3). */
+  fieldPhysics: Record<'moisture' | 'contamination' | 'temperature' | 'nutrients', FieldPhysics>;
+  /** Disturbance scheduling interval in ticks (paper example uses 64). */
+  disturbanceInterval: number;
 }
 
 export const REALM_CONFIGS: Record<RealmType, RealmConfig> = {
@@ -63,6 +73,13 @@ export const REALM_CONFIGS: Record<RealmType, RealmConfig> = {
       { name: 'Desiccating Drought Pulse', deltas: { water_availability: -0.45, temperature: 0.3 }, radius: 16 },
       { name: 'Acid Rain Storm', deltas: { contamination: 0.25, nutrients: -0.2 }, radius: 14 },
     ],
+    fieldPhysics: {
+      moisture: { diffusion: 0.04, decay: 0.0005 },
+      contamination: { diffusion: 0.03, decay: 0.0008 },
+      temperature: { diffusion: 0.02, decay: 0.0006 },
+      nutrients: { diffusion: 0.025, decay: 0.0004 },
+    },
+    disturbanceInterval: 150,
   },
   ashenrealm: {
     id: 'ashenrealm',
@@ -103,6 +120,13 @@ export const REALM_CONFIGS: Record<RealmType, RealmConfig> = {
       { name: 'Seismic Rift Shaking', deltas: { nutrients: -0.3, water_availability: -0.2 }, radius: 18 },
       { name: 'Volcanic Ash Fallout', deltas: { contamination: 0.45 }, radius: 20 },
     ],
+    fieldPhysics: {
+      moisture: { diffusion: 0.04, decay: 0.001 },
+      contamination: { diffusion: 0.03, decay: 0.0009 },
+      temperature: { diffusion: 0.03, decay: 0.0004 },
+      nutrients: { diffusion: 0.02, decay: 0.0006 },
+    },
+    disturbanceInterval: 150,
   },
   proteinrealms: {
     id: 'proteinrealms',
@@ -143,6 +167,13 @@ export const REALM_CONFIGS: Record<RealmType, RealmConfig> = {
       { name: 'Thermal Denaturation Wave', deltas: { temperature: 0.55 }, radius: 16 },
       { name: 'Hydrodynamic Shear Surge', deltas: { water_availability: 0.4 }, radius: 12 },
     ],
+    fieldPhysics: {
+      moisture: { diffusion: 0.045, decay: 0.0004 },
+      contamination: { diffusion: 0.035, decay: 0.0009 },
+      temperature: { diffusion: 0.02, decay: 0.0005 },
+      nutrients: { diffusion: 0.03, decay: 0.0003 },
+    },
+    disturbanceInterval: 150,
   },
 };
 

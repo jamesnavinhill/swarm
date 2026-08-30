@@ -355,8 +355,8 @@ export class SwarmEngine {
     // 3. Persistent Artifact Virtual Machine Execution
     this.executeArtifactVirtualMachines();
 
-    // 4. Periodic Disturbance Pulses
-    if (this.tick % 150 === 0) {
+    // 4. Periodic Disturbance Pulses (interval from realm config per S2.2.3)
+    if (this.tick % REALM_CONFIGS[this.realm].disturbanceInterval === 0) {
       this.triggerSeededDisturbance();
     }
 
@@ -368,29 +368,35 @@ export class SwarmEngine {
     this.recordMetrics();
   }
 
+  /**
+   * Advance all four environmental fields per paper S2.2.3:
+   *   F(t+1) = (1-λ)·[F(t) + D·Δ4F(t)]
+   * using a 4-neighbor Laplacian with edge-value padding, per-field diffusion
+   * D and decay λ taken from the active realm config. All fields — moisture,
+   * contamination, temperature, nutrients — are live.
+   */
   private advanceEnvironmentalFields() {
     const w = this.width;
     const h = this.height;
-    const size = w * h;
+    const physics = REALM_CONFIGS[this.realm].fieldPhysics;
 
-    // Decay & diffusion buffers
-    const nextMoisture = new Float32Array(this.fields.moisture);
-    const nextContam = new Float32Array(this.fields.contamination);
+    const fieldKeys: Array<keyof EnvironmentalFields> = ['moisture', 'contamination', 'temperature', 'nutrients'];
 
-    for (let y = 1; y < h - 1; y++) {
-      for (let x = 1; x < w - 1; x++) {
-        const idx = y * w + x;
-        const lapM = (this.fields.moisture[idx - 1] + this.fields.moisture[idx + 1] + this.fields.moisture[idx - w] + this.fields.moisture[idx + w] - 4 * this.fields.moisture[idx]);
-        const lapC = (this.fields.contamination[idx - 1] + this.fields.contamination[idx + 1] + this.fields.contamination[idx - w] + this.fields.contamination[idx + w] - 4 * this.fields.contamination[idx]);
+    for (const key of fieldKeys) {
+      const field = this.fields[key];
+      const next = new Float32Array(field);
+      const { diffusion, decay } = physics[key];
 
-        // Diffusion rate 0.04, decay 0.001
-        nextMoisture[idx] = Math.max(0, Math.min(1.0, this.fields.moisture[idx] + 0.04 * lapM - 0.0005));
-        nextContam[idx] = Math.max(0, Math.min(1.0, this.fields.contamination[idx] + 0.03 * lapC - 0.0008));
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          const idx = y * w + x;
+          const lap =
+            field[idx - 1] + field[idx + 1] + field[idx - w] + field[idx + w] - 4 * field[idx];
+          next[idx] = Math.max(0, Math.min(1.0, (1 - decay) * (field[idx] + diffusion * lap)));
+        }
       }
+      this.fields[key] = next;
     }
-
-    this.fields.moisture = nextMoisture;
-    this.fields.contamination = nextContam;
   }
 
   private executeAgentMacroturns() {
@@ -830,10 +836,64 @@ export class SwarmEngine {
   }
 
   /**
-   * Run Agent-Free Held-Out Resilience Assay under 8 unseen schedules (Algorithm 1)
+   * Deep-copy the engine's mutable state for deterministic agent-free
+   * evaluation. Per paper S2.7/S2.8 and S2.9, a held-out assay clones the
+   * discovery world and removes all agents; only field dynamics and installed
+   * artifact programs continue. This uses the same per-realm deterministic
+   * `prng` (seeded by world seed + tick), so identical inputs produce an
+   * identical assay.
+   */
+  public cloneForAssay(): SwarmEngine {
+    const copy = Object.create(SwarmEngine.prototype) as SwarmEngine;
+    copy.realm = this.realm;
+    copy.condition = this.condition;
+    copy.populationN = 0;
+    copy.seed = this.seed;
+    copy.tick = this.tick;
+    copy.isRunning = false;
+    copy.speedMultiplier = this.speedMultiplier;
+    copy.width = this.width;
+    copy.height = this.height;
+    copy.terrainGrid = new Uint8Array(this.terrainGrid);
+    copy.resourceMassGrid = new Float32Array(this.resourceMassGrid);
+    copy.resourceTypeGrid = new Uint8Array(this.resourceTypeGrid);
+    copy.fields = {
+      moisture: new Float32Array(this.fields.moisture),
+      contamination: new Float32Array(this.fields.contamination),
+      temperature: new Float32Array(this.fields.temperature),
+      nutrients: new Float32Array(this.fields.nutrients),
+    };
+    copy.agents = []; // agents removed for the assay
+    copy.artifacts = this.artifacts.map(a => ({
+      ...a,
+      registers: [...a.registers],
+      contributors: [...a.contributors],
+      causalParentArtifactIds: [...a.causalParentArtifactIds],
+      causalEvidenceIds: [...a.causalEvidenceIds],
+      operationalFlux: { ...a.operationalFlux },
+      serviceLevels: { ...a.serviceLevels },
+      materialBatch: {
+        recipe: { feedstocks: a.materialBatch.recipe.feedstocks.map(f => ({ ...f })), operations: [...a.materialBatch.recipe.operations] },
+        properties: { ...a.materialBatch.properties },
+      },
+      program: a.program ? { ...a.program, instructions: a.program.instructions.map(i => ({ ...i })) } : undefined,
+    }));
+    copy.activeDisturbances = this.activeDisturbances.map(d => ({ ...d, deltas: { ...d.deltas } }));
+    copy.metricsHistory = [...this.metricsHistory];
+    copy.provenanceGraph = { nodes: [...this.provenanceGraph.nodes], edges: [...this.provenanceGraph.edges] };
+    copy.heldOutReports = [...this.heldOutReports];
+    return copy;
+  }
+
+  /**
+   * Run Agent-Free Held-Out Resilience Assay under 8 unseen schedules.
+   * Faithful to paper S2.7/S2.9: freeze state, clone per schedule, remove
+   * agents, advance each clone 288 physics ticks while injecting new seeded
+   * disturbance centers/order, integrate balanced service coverage Qs(t) per
+   * schedule, then average across schedules. Programs continue executing via
+   * `executeArtifactVirtualMachines`; the cloned world is discarded.
    */
   public runHeldOutAssay(): HeldOutAssayReport {
-    const schedules: HeldOutScheduleResult[] = [];
     const scheduleNames = [
       'Contamination Shockwave A',
       'Desiccating Drought Pulse B',
@@ -845,43 +905,82 @@ export class SwarmEngine {
       'Cyclic Tidal Surge H',
     ];
 
+    const EVAL_TICKS = 288;   // paper: 288 physics ticks per schedule
+    const SCHEDULES = 8;      // paper: 8 paired unseen schedules
+    const DIST_INTERVAL = REALM_CONFIGS[this.realm].disturbanceInterval;
+    const config = REALM_CONFIGS[this.realm];
+
+    // Freeze the discovery world once; state is deep-copied into each clone
+    const frozenArtifacts = this.artifacts;
+
+    const schedules: HeldOutScheduleResult[] = [];
     let aggregateResilience = 0;
 
-    for (let s = 0; s < 8; s++) {
+    for (let s = 0; s < SCHEDULES; s++) {
+      // Clone the frozen state for this schedule (agents already removed)
+      const clone = this.cloneForAssay();
+
       const curve: number[] = [];
       let totalQ = 0;
-      const testTicks = 60; // assay duration
 
-      for (let t = 0; t < testTicks; t++) {
-        // Calculate balanced service coverage Qs(t) across active artifacts
-        const activeArt = this.artifacts.filter(a => a.health > 0.2);
-        if (activeArt.length === 0) {
+      for (let t = 0; t < EVAL_TICKS; t++) {
+        // Inject new disturbances from an evaluation seedstream distinct from discovery
+        if (t > 0 && t % DIST_INTERVAL === 0) {
+          const evalTick = 100000 + s * 1000 + t;
+          const distType = config.disturbanceTypes[Math.floor(clone.prng(evalTick) * config.disturbanceTypes.length)];
+          const cx = Math.floor(10 + clone.prng(evalTick * 3) * (clone.width - 20));
+          const cy = Math.floor(10 + clone.prng(evalTick * 11) * (clone.height - 20));
+          const rad = distType.radius;
+          for (let y = Math.max(0, cy - rad); y <= Math.min(clone.height - 1, cy + rad); y++) {
+            for (let x = Math.max(0, cx - rad); x <= Math.min(clone.width - 1, cx + rad); x++) {
+              const d2 = (x - cx) ** 2 + (y - cy) ** 2;
+              if (d2 <= rad * rad) {
+                const factor = Math.exp(-d2 / (2 * (rad * 0.5) ** 2));
+                const idx = y * clone.width + x;
+                if (distType.deltas.contamination) {
+                  clone.fields.contamination[idx] = Math.min(1, clone.fields.contamination[idx] + distType.deltas.contamination * factor);
+                }
+                if (distType.deltas.water_availability) {
+                  clone.fields.moisture[idx] = Math.max(0, Math.min(1, clone.fields.moisture[idx] + distType.deltas.water_availability * factor));
+                }
+                if (distType.deltas.temperature) {
+                  clone.fields.temperature[idx] = Math.max(0, Math.min(1, clone.fields.temperature[idx] + distType.deltas.temperature * factor));
+                }
+                if (distType.deltas.nutrients) {
+                  clone.fields.nutrients[idx] = Math.max(0, Math.min(1, clone.fields.nutrients[idx] + distType.deltas.nutrients * factor));
+                }
+              }
+            }
+          }
+        }
+
+        // Advance deterministic physics + installed programs (no agents act)
+        clone.advanceEnvironmentalFields();
+        clone.executeArtifactVirtualMachines();
+
+        // Balanced current service coverage Qs(t) over active artifacts
+        const active = clone.artifacts.filter(a => a.health > 0.2);
+        if (active.length === 0) {
           curve.push(0);
           continue;
         }
-
-        const maxMoisture = Math.max(...activeArt.map(a => a.serviceLevels.moistureBuffering));
-        const maxRemediation = Math.max(...activeArt.map(a => a.serviceLevels.contaminationRemediation));
-        const maxStructural = Math.max(...activeArt.map(a => a.serviceLevels.structuralContinuity));
-        const maxThermal = Math.max(...activeArt.map(a => a.serviceLevels.thermalShielding));
-        const maxHealing = Math.max(...activeArt.map(a => a.serviceLevels.adaptiveHealing));
-
-        const services = [maxMoisture, maxRemediation, maxStructural, maxThermal, maxHealing];
-        const meanService = services.reduce((a, b) => a + b, 0) / services.length;
-        const minService = Math.min(...services);
-        const balanceRatio = meanService > 0 ? minService / meanService : 0;
-        const Qt = meanService * (1 + balanceRatio) * 0.5;
-
-        // Apply progressive disturbance stress during assay
-        const stressFactor = Math.max(0.7, 1.0 - (t / testTicks) * 0.3 * (0.8 + (s % 3) * 0.1));
-        const finalQt = Qt * stressFactor * (this.condition === 'independent_search' ? 0.78 : 1.0);
-        curve.push(Number(finalQt.toFixed(4)));
-        totalQ += finalQt;
+        const health = (a: typeof active[number]) => Math.max(0, Math.min(1, a.health));
+        const s0 = Math.max(...active.map(a => a.serviceLevels.moistureBuffering * health(a)));
+        const s1 = Math.max(...active.map(a => a.serviceLevels.contaminationRemediation * health(a)));
+        const s2 = Math.max(...active.map(a => a.serviceLevels.structuralContinuity * health(a)));
+        const s3 = Math.max(...active.map(a => a.serviceLevels.thermalShielding * health(a)));
+        const s4 = Math.max(...active.map(a => a.serviceLevels.adaptiveHealing * health(a)));
+        const arr = [s0, s1, s2, s3, s4];
+        const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+        const min = Math.min(...arr);
+        const balance = mean > 0 ? min / mean : 0;
+        const Qt = mean * (0.5 + 0.5 * balance);
+        curve.push(Number(Qt.toFixed(4)));
+        totalQ += Qt;
       }
 
-      const meanResilience = totalQ / testTicks;
+      const meanResilience = totalQ / EVAL_TICKS;
       aggregateResilience += meanResilience;
-
       schedules.push({
         scheduleId: s + 1,
         name: scheduleNames[s],
@@ -890,15 +989,14 @@ export class SwarmEngine {
       });
     }
 
-    const overallResilienceAUC = Number((aggregateResilience / 8).toFixed(4));
+    const overallResilienceAUC = Number((aggregateResilience / SCHEDULES).toFixed(4));
     const report: HeldOutAssayReport = {
       timestamp: Date.now(),
       checkpointTick: this.tick,
       overallResilienceAUC,
       schedules,
-      activeArtifactCount: this.artifacts.length,
+      activeArtifactCount: frozenArtifacts.length,
     };
-
     this.heldOutReports.push(report);
     return report;
   }
