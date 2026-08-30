@@ -1,0 +1,6 @@
+{
+  "name": "SwarmWorld: Stigmergic Evolution",
+  "description": "An interactive scientific game simulating stigmergic technological evolution, bio-inspired materials discovery, and decentralized LLM agent societies.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
