@@ -88,7 +88,9 @@ function MainApp() {
 
   const handleConditionChange = (condition: ConditionType) => {
     sound.playClick();
-    engine.condition = condition;
+    // Use the engine's condition setter so independent_search builds/tears down
+    // its isolated 1-agent member worlds rather than flipping a bare flag.
+    engine.setCondition(condition);
     forceUpdate();
   };
 

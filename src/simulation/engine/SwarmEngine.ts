@@ -53,6 +53,14 @@ export class SwarmEngine {
   public provenanceGraph: ProvenanceGraph = { nodes: [], edges: [] };
   public heldOutReports: HeldOutAssayReport[] = [];
 
+  /**
+   * Independent-search envelope (paper S2.6): when `condition === 'independent_search'`,
+   * `populationN` isolated 1-agent member worlds are run in parallel and each
+   * reported endpoint is the endpoint-wise best-of-N. Member worlds have empty
+   * `isolatedMembers`, so no recursion occurs.
+   */
+  private isolatedMembers?: SwarmEngine[];
+
   // Running maximum performance for Discovery-Frontier AUC
   private runningPeakPerformance: number = 0;
   private discoveryAreaSum: number = 0;
@@ -338,12 +346,96 @@ export class SwarmEngine {
     }
 
     this.recordMetrics();
+
+    // Independent-search condition (paper S2.6): this engine becomes a thin
+    // coordinator that owns N isolated 1-agent member worlds and reports their
+    // endpoint-wise best-of-N envelope. Members are plain engines with no
+    // `isolatedMembers` of their own, so no recursion occurs.
+    if (this.condition === 'independent_search') {
+      this.buildIsolatedMembers();
+    }
+  }
+
+  /**
+   * Build/rebuild the N isolated 1-agent member worlds for independent_search,
+   * replacing the coordinator's own shared-world state. Idempotent.
+   */
+  private buildIsolatedMembers() {
+    const chosenRealm = this.realm;
+    const chosenSeed = this.seed;
+    const n = this.populationN;
+    this.isolatedMembers = [];
+    for (let i = 0; i < n; i++) {
+      this.isolatedMembers.push(new SwarmEngine(chosenRealm, 'full_culture', 1, chosenSeed));
+    }
+    // Replace shared fields/terrain with member 0 (identical for same seed+config).
+    this.syncIsolatedAggregates();
+  }
+
+  /**
+   * Called by the UI when the protocol condition changes. Creates or tears
+   * down the isolated-member envelope so the visible state always matches the
+   * active condition without requiring a full world reset.
+   */
+  public setCondition(condition: ConditionType) {
+    if (condition === this.condition) return;
+    this.condition = condition;
+    if (condition === 'independent_search') {
+      this.buildIsolatedMembers();
+    } else {
+      // Leaving independent search: drop the envelope; the shared world resumes
+      // normal 1-N dynamics from the next tickStep onward.
+      this.isolatedMembers = undefined;
+    }
+  }
+
+  /**
+   * Roll up N isolated 1-agent member worlds into this coordinator's world so
+   * the UI always reads a single coherent state. Fields/terrain come from
+   * member 0 (identical for the same seed + config); agents/artifacts are the
+   * concatenation across members; metrics use endpoint-wise best-of-N.
+   */
+  private syncIsolatedAggregates() {
+    const members = this.isolatedMembers ?? [];
+    if (members.length === 0) return;
+    const first = members[0];
+
+    this.width = first.width;
+    this.height = first.height;
+    this.terrainGrid = first.terrainGrid;
+    this.resourceMassGrid = first.resourceMassGrid;
+    this.resourceTypeGrid = first.resourceTypeGrid;
+    this.fields = first.fields;
+    this.activeDisturbances = first.activeDisturbances;
+
+    this.agents = members.flatMap(m => m.agents);
+    this.artifacts = members.flatMap(m => m.artifacts);
+    this.provenanceGraph = {
+      nodes: members.flatMap(m => m.provenanceGraph.nodes),
+      edges: members.flatMap(m => m.provenanceGraph.edges),
+    };
+
+    // Endpoint-wise best-of-N for discovery frontier (paper S2.6).
+    const best = members.reduce((acc, m) => m.runningPeakPerformance > acc ? m.runningPeakPerformance : acc, 0);
+    this.runningPeakPerformance = best;
   }
 
   /**
    * Advance 1 deterministic world tick (Algorithm 1)
    */
   public tickStep() {
+    // Independent search: advance each isolated member world. The shared
+    // engine is only a presentation coordinator; members own the real physics.
+    if (this.isolatedMembers && this.isolatedMembers.length > 0) {
+      this.tick++;
+      for (const m of this.isolatedMembers) {
+        m.tickStep();
+      }
+      this.syncIsolatedAggregates();
+      this.recordMetrics();
+      return;
+    }
+
     this.tick++;
 
     // 1. Advance environmental fields via 4-neighbor Laplacian diffusion and decay
@@ -360,12 +452,28 @@ export class SwarmEngine {
       this.triggerSeededDisturbance();
     }
 
-    // 5. Update agent behavioral phenotypes and metrics
+    // 5. Track behavioral inputs every tick (proximity windows) and re-fit
+    // agent phenotypes/roles every 200-tick window.
+    this.trackBehavioralInputs();
     if (this.tick % 5 === 0) {
       this.updateAgentPhenotypes();
     }
 
     this.recordMetrics();
+  }
+
+  /**
+   * Record per-tick behavioral proximity inputs (paper S2.10) — runs every
+   * tick so that the 200-tick windows contain real signal rather than the ~4
+   * sparse macroturn firings.
+   */
+  private trackBehavioralInputs() {
+    for (const agent of this.agents) {
+      const nearArt = this.findNearestArtifact(agent.x, agent.y);
+      const distNear = nearArt ? Math.hypot(agent.x - nearArt.x, agent.y - nearArt.y) : 999;
+      agent.ticksNearArtifact = (agent.ticksNearArtifact ?? 0) + (distNear <= 4 ? 1 : 0);
+      agent.ticksMobile = (agent.ticksMobile ?? 0) + (distNear > 6 ? 1 : 0);
+    }
   }
 
   /**
@@ -403,15 +511,22 @@ export class SwarmEngine {
     const config = REALM_CONFIGS[this.realm];
 
     for (const agent of this.agents) {
-      // Check if scheduled for a macroturn (every 50 ticks, phase staggered)
-      const isMacroturn = (this.tick - agent.macroturnPhase) % 50 === 0;
+      // Paper §4.1: staggered macroturns every 50 ticks. A plan (≤12 actions)
+      // is generated ONCE at the macroturn and drained over subsequent ticks.
+      // Agents do NOT replan just because the queue emptied mid-window — they
+      // act only within their macroturn window, preventing every-tick action
+      // loops that collapse behavioral diversity.
+      const macroturnCycle = Math.floor((this.tick - agent.macroturnPhase) / 50);
+      const isNewMacroturn = (this.tick - agent.macroturnPhase) % 50 === 0;
+      const lastPlannedCycle = (agent as any).plannedCycle ?? -1;
 
-      if (isMacroturn || agent.actionQueue.length === 0) {
-        // Agent generates structured action plan
+      if (isNewMacroturn && macroturnCycle !== lastPlannedCycle) {
+        agent.actionQueue = [];
         this.generateAgentPlan(agent);
+        (agent as any).plannedCycle = macroturnCycle;
       }
 
-      // Execute front action
+      // Execute at most one action per tick while the plan has items.
       if (agent.actionQueue.length > 0) {
         const action = agent.actionQueue.shift();
         this.executeAtomicAction(agent, action || 'WAIT');
@@ -958,21 +1073,50 @@ export class SwarmEngine {
         clone.advanceEnvironmentalFields();
         clone.executeArtifactVirtualMachines();
 
-        // Balanced current service coverage Qs(t) over active artifacts
-        const active = clone.artifacts.filter(a => a.health > 0.2);
+        // Balanced current service coverage Qs(t) over active artifacts.
+        // Service coverage reflects LIVE physics: each artifact's service
+        // attenuates with its health, and moisture-buffering / remediation /
+        // thermal-shielding additionally respond to the *surrounding* field
+        // state at the artifact's location (a moisture buffer inside a
+        // desiccated drought field performs worse; a remediator inside a heavy
+        // contamination plume outperforms). This makes the 8 schedule curves
+        // genuinely distinct.
+        const active = clone.artifacts.filter(x => x.health > 0.2);
         if (active.length === 0) {
           curve.push(0);
           continue;
         }
-        const health = (a: typeof active[number]) => Math.max(0, Math.min(1, a.health));
-        const s0 = Math.max(...active.map(a => a.serviceLevels.moistureBuffering * health(a)));
-        const s1 = Math.max(...active.map(a => a.serviceLevels.contaminationRemediation * health(a)));
-        const s2 = Math.max(...active.map(a => a.serviceLevels.structuralContinuity * health(a)));
-        const s3 = Math.max(...active.map(a => a.serviceLevels.thermalShielding * health(a)));
-        const s4 = Math.max(...active.map(a => a.serviceLevels.adaptiveHealing * health(a)));
-        const arr = [s0, s1, s2, s3, s4];
-        const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
-        const min = Math.min(...arr);
+        const services: number[][] = active.map(x => {
+          const healthFactor = Math.max(0, Math.min(1, x.health));
+          const idx = x.y * clone.width + x.x;
+          const localMoisture = clone.fields.moisture[idx] ?? 0.5;
+          const localContamination = clone.fields.contamination[idx] ?? 0.1;
+          const localTemperature = clone.fields.temperature[idx] ?? 0.4;
+          const localNutrients = clone.fields.nutrients[idx] ?? 0.4;
+
+          // Moisture buffering: better in moderate moisture, worse in drought/flood
+          const moistureFit = 1 - Math.abs(localMoisture - 0.55) * 1.2;
+          // Contamination remediation: matters more where contamination is high
+          const remediationFit = 0.6 + localContamination;
+          // Structural continuity: stable in moderate temperature
+          const structuralFit = 1 - Math.abs(localTemperature - 0.5) * 0.6;
+          // Thermal shielding: matters more where temperature is high
+          const thermalFit = 0.6 + localTemperature;
+          // Adaptive healing: scales with available nutrients
+          const healingFit = 0.6 + localNutrients;
+
+          return [
+            Math.max(0, Math.min(1, x.serviceLevels.moistureBuffering * healthFactor * moistureFit)),
+            Math.max(0, Math.min(1, x.serviceLevels.contaminationRemediation * healthFactor * remediationFit)),
+            Math.max(0, Math.min(1, x.serviceLevels.structuralContinuity * healthFactor * structuralFit)),
+            Math.max(0, Math.min(1, x.serviceLevels.thermalShielding * healthFactor * thermalFit)),
+            Math.max(0, Math.min(1, x.serviceLevels.adaptiveHealing * healthFactor * healingFit)),
+          ];
+        });
+
+        const servicePeaks = [0, 1, 2, 3, 4].map(si => Math.max(...services.map(row => row[si])));
+        const mean = servicePeaks.reduce((x, y) => x + y, 0) / servicePeaks.length;
+        const min = Math.min(...servicePeaks);
         const balance = mean > 0 ? min / mean : 0;
         const Qt = mean * (0.5 + 0.5 * balance);
         curve.push(Number(Qt.toFixed(4)));
@@ -1001,21 +1145,77 @@ export class SwarmEngine {
     return report;
   }
 
+  /**
+   * Behavioral window classification (descriptive, trajectory-derived).
+   * Mirrors the paper's post-hoc analysis in S2.10 / Fig S4: every 200 ticks we
+   * re-fit each agent's window using proximity-to-technology, net displacement,
+   * construction/control activity, and social/cultural activity. Labels are
+   * descriptive windows, not assigned professions — the same agent can move
+   * between states as the society matures. This is an honest heuristic
+   * approximation of the paper's k-means cluster analysis (which requires the
+   * full trajectory corpus, deferred until data is available).
+   */
   private updateAgentPhenotypes() {
-    for (const agent of this.agents) {
-      const nearArt = this.findNearestArtifact(agent.x, agent.y);
-      const dist = nearArt ? Math.hypot(agent.x - nearArt.x, agent.y - nearArt.y) : 999;
+    const WINDOW = 200;
 
-      if (dist <= 4 && agent.artifactsBuilt > 0) {
+    for (const agent of this.agents) {
+      // Record window start position lazily.
+      if (agent.windowStartX === undefined || agent.windowStartY === undefined) {
+        agent.windowStartX = agent.x;
+        agent.windowStartY = agent.y;
+      }
+
+      if (this.tick % WINDOW !== 0) continue;
+
+      const near = agent.ticksNearArtifact ?? 0;
+      const mobile = agent.ticksMobile ?? 0;
+      const windowLen = Math.max(1, Math.min(WINDOW, this.tick));
+      const proximityRatio = near / windowLen;
+      const mobileRatio = mobile / windowLen;
+      const netDisplacement = Math.hypot(agent.x - agent.windowStartX, agent.y - agent.windowStartY);
+      agent.lastWindowNetDisplacement = netDisplacement;
+
+      // Window-scoped deltas, not cumulative history — agents move between states.
+      const built = agent.artifactsBuilt - (agent.windowBaseArtifactsBuilt ?? 0);
+      const programs = agent.programsAuthored - (agent.windowBaseProgramsAuthored ?? 0);
+      const construction = built + programs;
+      const social = agent.socialInteractions - (agent.windowBaseSocialInteractions ?? 0);
+      const repairs = agent.artifactInteractions - (agent.windowBaseArtifactInteractions ?? 0);
+
+      // Phenotype (broad modes C1/C2/C3), normalised over real ticks in window.
+      // C1: substantial time near technology. C2: mobile exploration. C3:
+      // genuinely low activity (small net displacement AND zero construction
+      // AND near-zero proximity to technology) — paper Fig S6's stationary mode.
+      if (proximityRatio >= 0.3) {
         agent.phenotype = 'C1_artifact_centered';
-        agent.role = agent.programsAuthored > 1 ? 'R1_constructor' : 'R2_caretaker';
-      } else if (dist <= 6 && agent.socialInteractions > 3 && this.condition === 'full_culture') {
-        agent.phenotype = 'C1_artifact_centered';
-        agent.role = 'R3_coordinator';
+      } else if (netDisplacement < 6 && construction === 0 && proximityRatio < 0.05) {
+        agent.phenotype = 'C3_stationary_low_activity';
       } else {
         agent.phenotype = 'C2_mobile_exploration';
+      }
+
+      // Granular roles R1-R4 (state-like, not fixed identities)
+      if (agent.phenotype === 'C1_artifact_centered') {
+        if (construction > 0) agent.role = 'R1_constructor';
+        else if (repairs > 0) agent.role = 'R2_caretaker';
+        else if (social > 5 && this.condition === 'full_culture') agent.role = 'R3_coordinator';
+        else agent.role = 'R2_caretaker';
+      } else if (agent.phenotype === 'C2_mobile_exploration' && social > 5 && this.condition === 'full_culture') {
+        agent.role = 'R3_coordinator';
+      } else {
         agent.role = 'R4_surveyor';
       }
+
+      // Reset the window: re-baseline both the proximity counters and the
+      // cumulative-counter snapshots so the next window is historically fresh.
+      agent.ticksNearArtifact = 0;
+      agent.ticksMobile = 0;
+      agent.windowStartX = agent.x;
+      agent.windowStartY = agent.y;
+      agent.windowBaseArtifactsBuilt = agent.artifactsBuilt;
+      agent.windowBaseProgramsAuthored = agent.programsAuthored;
+      agent.windowBaseArtifactInteractions = agent.artifactInteractions;
+      agent.windowBaseSocialInteractions = agent.socialInteractions;
     }
   }
 
@@ -1063,7 +1263,40 @@ export class SwarmEngine {
       currentServiceCoverage = Number((meanCur * (0.5 + 0.5 * balanceCur)).toFixed(4));
     }
 
-    // Validated Inventions count
+    // Validated Inventions count — uses a real behavioral-novelty score
+    // (recipe * program diversity against the existing portfolio, not a
+    // constant) per paper S2.9 / S1 validated-invention gate.
+    const noveltyScoreFor = (a: Artifact): number => {
+      const others = this.artifacts.filter(o => o.id !== a.id);
+      if (others.length === 0) {
+        // First artifacts are fully novel by construction.
+        return 1.0;
+      }
+
+      // Recipe novelty: 1 - max feedstock-type overlap with any other artifact.
+      const typesA = new Set(a.materialBatch.recipe.feedstocks.map(f => f.type));
+      let maxRecipeOverlap = 0;
+      for (const o of others) {
+        const typesO = new Set(o.materialBatch.recipe.feedstocks.map(f => f.type));
+        const inter = [...typesA].filter(t => typesO.has(t)).length;
+        const union = Math.max(1, new Set([...typesA, ...typesO]).size);
+        maxRecipeOverlap = Math.max(maxRecipeOverlap, inter / union);
+      }
+      const recipeNovelty = 1 - maxRecipeOverlap;
+
+      // Program novelty: fraction of sibling artifacts running a different
+      // program content-address (0 = identical to all, 1 = unique to all).
+      const idA = a.program?.id;
+      let programNovelty = 0.5;
+      if (idA) {
+        const sameProgram = others.filter(o => o.program?.id === idA).length;
+        programNovelty = 1 - sameProgram / others.length;
+      }
+
+      // 60% recipe / 40% program, capped [0,1].
+      return Math.max(0, Math.min(1, 0.6 * recipeNovelty + 0.4 * programNovelty));
+    };
+
     const validatedInventionsCount = this.artifacts.filter(a =>
       validateInventionCriteria(
         a.materialBatch.properties,
@@ -1072,7 +1305,7 @@ export class SwarmEngine {
         a.bioInspiration,
         !!a.program,
         a.lifetimePeakPerformance,
-        0.3
+        noveltyScoreFor(a)
       )
     ).length;
 

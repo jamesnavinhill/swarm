@@ -96,3 +96,46 @@ Where S2 is deliberately vague (e.g. the exact per-op property weights of the ma
 - Agent observation schema (`S2.1`) and action-plan JSON contract.
 - Macroturn scheduler identical to deterministic baseline; only the "plan generator" is swapped.
 - Deterministic *engine* stays untouched so replays and held-out assays continue to work with recorded plans.
+
+---
+
+## Implementation Log — 2026-08-30 (rebuild complete)
+
+All items in §2 either landed or were deliberately deferred with rationale. Verification: `npm run lint`, `npm run build`, and `npx tsx scripts/verify-faithful-engine.ts` — **14/14 checks PASS**.
+
+### Engine changes shipped
+- **All 4 environmental fields live** (moisture, contamination, temperature, nutrients) via `advanceEnvironmentalFields()` parameterized by new per-realm `fieldPhysics` (diffusion `D`, decay `λ`) in `realmsData.ts`. Previously temperature/nutrients were frozen.
+- **Realm-configured disturbance interval** (`REALM_CONFIGS[realm].disturbanceInterval = 150`) instead of a hardcoded magic number.
+- **Real held-out assay** (`runHeldOutAssay` + `cloneForAssay`): freezes the discovery world, deep-copies per schedule (agents removed), advances each clone 288 physics ticks with *new seeded disturbance centers/order* from an evaluation stream, computes **live physics-attenuated balanced coverage** `Qs(t) = mean·(0.5 + 0.5·min/mean)` over per-service peaks, then averages over 8 schedules. Service coverage responds to artifact health *and* local field state (drought reduces moisture-buffering, plumes stress remediation), so schedule results genuinely differ.
+- **Macroturn pacing fix (the big one)** — a single upstream bug: `isMacroturn || queue.length === 0` meant agents replanned whenever their ≤4-action queue drained, effectively acting every tick and collapsing all behavioral diversity (`programsAuthored` ran to 40+ per agent, 100% C1 phenotype). Now each agent plans **once per 50-tick macroturn window** (paper §4.1), drains its ≤12-action plan across subsequent ticks, and does not replan until the next scheduled window. Effect: realistic emergent spread.
+- **Behavioral window classifier** — descriptive 200-tick windows (paper S2.10 approximation) using proximity-to-technology, net displacement, and window-scoped construction/social/repairs deltas. C3 (stationary/low-activity) is now genuinely reachable.
+- **Independent-search envelope** — `condition = 'independent_search'` spawns `populationN` isolated 1-agent member engines (no recursion) reporting endpoint-wise best-of-N. `syncIsolatedAggregates()` rolls member state up into the coordinator for the UI. `setCondition()` builds/tears down members without a full reset.
+- **Validated-invention gate** — replaced constant novelty (0.3) with real **behavioral novelty** computed per artifact: 60% recipe feedstock-type disjointness + 40% program content-address uniqueness vs the existing portfolio.
+- **Deterministic replay** — two engines with same seed+config+tick count stay bit-identical; different seeds diverge (verified).
+
+### UI changes shipped
+- Metrics **"Comparative" tab** re-labeled as *paper-reported reference values (N=100, tick 3,200, means over 4 seeds)* with a clear disclaimer; live sim portfolio value displayed beside it for direct current comparison.
+- **Behavioral differentiation** caption rewritten to describe descriptive windows, not "emergent clustering".
+
+### Acceptance criteria met
+1. ✅ `npm run lint` + `npm run build` clean (bundle still properly code-split, PDF.js 146 kB gz separate chunk)
+2. ✅ 400-tick replay bit-identical across two engines (`seed 3202`); diverges under different seed
+3. ✅ Held-out assay produces 8 distinct schedules, all mean coverages in [0,1], overall AUC in [0,1] (0.568 at tick 220 full culture N=50)
+4. ✅ Independent-search runs 50 isolated 1-agent engines; UI renders condition selector correctly
+5. ✅ No live surface presents a hardcoded paper result as live measurement
+
+### Deferred (deliberately)
+- True k-means clustering (requires full trajectory corpus; window heuristics are the honest stopgap)
+- Scenario-YAML world packages (realm configs stay TypeScript for now)
+- True SHA-256 program IDs (JS content-addressing hash, equivalent role, lower fidelity)
+- Real LLM agents — see §6 follow-up below
+
+## Follow-up: real LLM agents
+
+The deterministic engine is now a structurally faithful recreation of Algorithm 1 + S2's physics. To add LLM cognition while keeping replay/assay deterministic:
+
+1. **Server proxy** (Express or Vercel Functions) for LLM calls — budget-capped, never in the browser.
+2. **Observation schema per S2.1** — local neighborhood semantic facts (terrain, resources, facilities, artifacts, fields, inventory), never global arrays.
+3. **Action-plan contract** — strict JSON plan of ≤12 atomic actions per macroturn from the same action vocabulary as the deterministic policy.
+4. **Swap only `generateAgentPlan`** — replace the deterministic heuristic plan generator with LLM call + schema validation + safe fallback. Everything downstream (`executeAtomicAction`, fields, VMs, assay, replay) stays unchanged.
+5. **Deterministic replay preservation** — recordings of LLM plans become part of the trace; replaying uses recorded plans, not fresh LLM calls.

@@ -304,30 +304,46 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ engine }) =>
             Bounded Swarm Advantage: Shared Societies vs Isolated Best-of-N Envelope
           </h3>
           <p className="text-xs text-neutral-400 max-w-3xl leading-relaxed">
-            As demonstrated in Figure 4 and Figure 14 of the MIT paper: shared worlds consistently outperform the isolated-search envelope in <strong>Portfolio Resilience (+0.086 to +0.130)</strong>, <strong>Held-Out Resilience (+0.010 to +0.015)</strong>, and <strong>Validated Inventions (+2.0 to +6.0)</strong>. However, isolated parallel search can still retain the single highest individual peak artifact.
+            Reference values reported in the MIT paper (Figures 4 &amp; 14, N=100, tick 3,200, means over 4 seeds). These are <em>paper results</em>, not measurements from this live sim. This deterministic recreation runs the same engine logic and endpoint formulas; expect close behaviour, but not identical numbers without the LLM-driven agents.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-2">
             <div className="p-3.5 rounded-sm bg-neutral-950 border border-neutral-700">
               <div className="text-xs font-semibold text-neutral-200 uppercase">Full Culture Society</div>
               <div className="text-xl font-bold text-neutral-100 mt-1.5">0.2474</div>
-              <div className="text-[11px] text-neutral-500">Portfolio Resilience (Tick 3,200)</div>
-              <div className="mt-2 text-xs text-neutral-300 font-medium">+38% over Isolated Search</div>
+              <div className="text-[11px] text-neutral-500">Portfolio Resilience (paper, tick 3,200)</div>
+              <div className="mt-2 text-xs text-neutral-300 font-medium">Paper-reported reference</div>
             </div>
 
             <div className="p-3.5 rounded-sm bg-neutral-950 border border-neutral-800">
               <div className="text-xs font-semibold text-neutral-300 uppercase">No Explicit Culture</div>
               <div className="text-xl font-bold text-neutral-100 mt-1.5">0.2365</div>
-              <div className="text-[11px] text-neutral-500">Portfolio Resilience (Tick 3,200)</div>
-              <div className="mt-2 text-xs text-neutral-400 font-medium">+32% over Isolated Search</div>
+              <div className="text-[11px] text-neutral-500">Portfolio Resilience (paper, tick 3,200)</div>
+              <div className="mt-2 text-xs text-neutral-400 font-medium">Paper-reported reference</div>
             </div>
 
             <div className="p-3.5 rounded-sm bg-neutral-950 border border-neutral-800">
               <div className="text-xs font-semibold text-neutral-400 uppercase">Independent Best-of-N</div>
               <div className="text-xl font-bold text-neutral-100 mt-1.5">0.1794</div>
-              <div className="text-[11px] text-neutral-500">Portfolio Resilience (Tick 3,200)</div>
-              <div className="mt-2 text-xs text-neutral-500">Baseline Isolated Control</div>
+              <div className="text-[11px] text-neutral-500">Portfolio Resilience (paper, tick 3,200)</div>
+              <div className="mt-2 text-xs text-neutral-500">Paper-reported reference</div>
             </div>
+          </div>
+
+          <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 text-xs text-neutral-400 mt-3">
+            <span className="font-semibold text-neutral-200 block mb-0.5">Current live sim (portfolio resilience):</span>
+            <span className="font-mono text-neutral-200 text-base">
+              {engine.metricsHistory.length > 0
+                ? engine.metricsHistory[engine.metricsHistory.length - 1].portfolioResilience.toFixed(4)
+                : '—'}
+            </span>
+            <span className="text-neutral-500 ml-2">
+              (condition: {engine.condition.replace(/_/g, ' ')}, N={engine.populationN}, tick {engine.tick})
+            </span>
+            <p className="mt-1.5 text-[11px] text-neutral-500 leading-relaxed">
+              This is the same endpoint formula as the paper (`mean·(0.5 + 0.5·min/mean)` over lifetime-peak service fingerprints),
+              computed from this sim's actual current state. Flip to <em>Independent Search</em> with a comparable tick count to see a live best-of-N envelope.
+            </p>
           </div>
         </div>
       )}

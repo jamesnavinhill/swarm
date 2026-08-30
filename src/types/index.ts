@@ -208,6 +208,20 @@ export interface Agent {
   actionQueue: string[];
   memory: AgentMemoryRecord[];
   activeColor: string;
+  /** Ticks spent within 4 cells of an active artifact (behavioral window input). */
+  ticksNearArtifact?: number;
+  /** Ticks spent moving in the last evaluated window. */
+  ticksMobile?: number;
+  /** Net displacement over the last evaluated behavioral window (cells). */
+  lastWindowNetDisplacement?: number;
+  /** X/Y position at the start of the current behavioral window. */
+  windowStartX?: number;
+  windowStartY?: number;
+  /** Snapshot of cumulative counters at the start of the current window (for window deltas). */
+  windowBaseArtifactsBuilt?: number;
+  windowBaseProgramsAuthored?: number;
+  windowBaseArtifactInteractions?: number;
+  windowBaseSocialInteractions?: number;
 }
 
 export interface EnvironmentalFields {
