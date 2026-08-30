@@ -31,8 +31,8 @@ interface PaperModalProps {
 
 export const PaperInsightsModal: React.FC<PaperModalProps> = ({ onClose }) => {
   const [activeMode, setActiveMode] = useState<'paper' | 'info'>('paper');
-  const [activePaperSection, setActivePaperSection] = useState<'overview' | 'inventions' | 'findings' | 'methods'>('overview');
-  const [activeInfoSection, setActiveInfoSection] = useState<'rules' | 'roles' | 'workbench' | 'metrics'>('rules');
+  const [activePaperSection, setActivePaperSection] = useState<'overview' | 'findings' | 'inventions' | 'methods'>('overview');
+  const [activeInfoSection, setActiveInfoSection] = useState<'rules' | 'views' | 'roles' | 'workbench' | 'math'>('rules');
 
   const handleDownloadPaperSummary = () => {
     sound.playSuccess();
@@ -190,10 +190,11 @@ export const PaperInsightsModal: React.FC<PaperModalProps> = ({ onClose }) => {
           ) : (
             <>
               {[
-                { id: 'rules', label: '1. Simulation Rules & Mechanics' },
-                { id: 'roles', label: '2. Agent Roles & Phenotypes' },
-                { id: 'workbench', label: '3. Material Workbench Guide' },
-                { id: 'metrics', label: '4. Held-Out Benchmarks & Metrics' },
+                { id: 'rules', label: '1. Quickstart & Core Rules' },
+                { id: 'views', label: '2. Tour of the 6 Views' },
+                { id: 'roles', label: '3. Agent Roles & Phenotypes' },
+                { id: 'workbench', label: '4. Material Fabrication & VM' },
+                { id: 'math', label: '5. Engine Math & Equations' },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -293,7 +294,7 @@ export const PaperInsightsModal: React.FC<PaperModalProps> = ({ onClose }) => {
               {activePaperSection === 'inventions' && (
                 <div className="space-y-3.5">
                   <p className="text-xs text-neutral-400">
-                    16 canonical agent-invented technologies extracted from the experimental runs across BioFoundry, AshenRealm, and Protein Realms:
+                    16 canonical agent-invented technologies extracted from experimental runs across BioFoundry, AshenRealm, and Protein Realms:
                   </p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -346,39 +347,97 @@ export const PaperInsightsModal: React.FC<PaperModalProps> = ({ onClose }) => {
                   <div className="p-4 rounded-md bg-neutral-950 border border-neutral-800 space-y-1.5">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-200 flex items-center gap-2">
                       <Zap className="w-3.5 h-3.5 text-neutral-400" />
-                      How SwarmWorld Operates
+                      SwarmWorld in 60 Seconds: Plain-English Quickstart
                     </h3>
                     <p className="text-xs text-neutral-300 leading-relaxed">
-                      SwarmWorld is a multi-agent simulation sandbox modeling the cultural transmission and open-ended technological evolution of language model agents in hostile environments.
+                      You are observing a living colony of autonomous AI agents dropped into a hostile biome. Without human recipes or top-down managers, they gather bio-feedstocks, invent physical machines, and program them with straight-line code. Over generations, these machines protect the colony from toxic floods, droughts, and heatwaves.
                     </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                     <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1.5">
-                      <h4 className="font-semibold text-neutral-200 text-xs">1. Macroturn Cycle (m=50 Ticks)</h4>
+                      <h4 className="font-semibold text-neutral-200 text-xs">1. What is a "Tick"?</h4>
                       <p className="text-neutral-400 text-xs leading-relaxed">
-                        Agents observe local environmental gradients (moisture, temperature, toxins) and scan for nearby artifacts. They formulate actions: gathering feedstocks, depositing terrain, building machines, or forking code.
+                        A tick is one instant of physical simulation time. The engine diffuses chemical fields (moisture, toxins, heat), updates agent movement and energy metabolism, and runs every machine's internal 16-register program.
                       </p>
                     </div>
 
                     <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1.5">
-                      <h4 className="font-semibold text-neutral-200 text-xs">2. Deterministic World Ticks</h4>
+                      <h4 className="font-semibold text-neutral-200 text-xs">2. What is "Stigmergy"?</h4>
                       <p className="text-neutral-400 text-xs leading-relaxed">
-                        The world simulator runs physical diffusion, field decay, agent energy metabolism, and executes artifact straight-line bytecode controllers deterministically at each tick.
+                        Indirect coordination through the environment. Just like ants deposit pheromone trails to build nests, SwarmWorld agents build permanent physical machines and deposit terrain modifications that future generations encounter and build upon.
                       </p>
                     </div>
 
                     <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1.5">
-                      <h4 className="font-semibold text-neutral-200 text-xs">3. The 4 Experimental Conditions</h4>
+                      <h4 className="font-semibold text-neutral-200 text-xs">3. What is a "Machine / Artifact"?</h4>
                       <p className="text-neutral-400 text-xs leading-relaxed">
-                        Switch between <strong>Full Culture</strong> (terrain stigmergy + code forking), <strong>No Communication</strong> (code inheritance only), <strong>No Explicit Culture</strong> (physical terrain modifications only), and <strong>Independent Search</strong> (isolated runs).
+                        A permanent structure placed on the map. It has physical properties (toughness, permeability, self-healing) and runs a tiny 16-register computer program every tick to pump water, neutralize toxins, or emit heat barriers.
                       </p>
                     </div>
 
                     <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1.5">
-                      <h4 className="font-semibold text-neutral-200 text-xs">4. Stress Disturbance Pulses</h4>
+                      <h4 className="font-semibold text-neutral-200 text-xs">4. How Do I Run Experiments?</h4>
                       <p className="text-neutral-400 text-xs leading-relaxed">
-                        Hit the "Stress Pulse" button to simulate hostile shocks (toxin floods, heatwaves, structural shear). Observe how agent artifacts shield the ecosystem and maintain portfolio resilience.
+                        Hit <strong>Play (▶)</strong> to start the clock. Switch the <strong>Field:</strong> heatmap on the map to see moisture or toxic plumes. Click <strong>Stress Pulse</strong> to shock the ecosystem and watch how the machines react!
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeInfoSection === 'views' && (
+                <div className="space-y-3.5">
+                  <div className="p-4 rounded-md bg-neutral-950 border border-neutral-800 space-y-1.5">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-200 flex items-center gap-2">
+                      <Globe className="w-3.5 h-3.5 text-neutral-400" />
+                      Tour of the 6 Navigation Views
+                    </h3>
+                    <p className="text-xs text-neutral-400 leading-relaxed">
+                      SwarmWorld is structured into 6 focused screens accessible via the bottom navigation bar:
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
+                    <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1">
+                      <h4 className="font-semibold text-neutral-200">1. 🌍 Ecosystem Map</h4>
+                      <p className="text-neutral-400 leading-relaxed">
+                        Interactive 2D spatial canvas. Watch agents move, harvest feedstocks, and inspect machines. Switch heatmaps between Moisture, Toxins, Heat, and Nutrients, or trigger environmental Stress Pulses.
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1">
+                      <h4 className="font-semibold text-neutral-200">2. ⚙️ Material Workbench</h4>
+                      <p className="text-neutral-400 leading-relaxed">
+                        Open-ended biomaterials synthesis sandbox. Mix raw feedstocks, apply processing sequences (WASH, FERMENT, PRESS), program 16-register VM bytecode, and deploy new machines into the world.
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1">
+                      <h4 className="font-semibold text-neutral-200">3. 🌳 Knowledge Lineage</h4>
+                      <p className="text-neutral-400 leading-relaxed">
+                        Bipartite Provenance DAG. Visualizes how observations lead to theories, and how ancestor machines are copied and forked into new generations of code.
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1">
+                      <h4 className="font-semibold text-neutral-200">4. 📊 Analytics & Metrics</h4>
+                      <p className="text-neutral-400 leading-relaxed">
+                        Scientific research dashboards tracking Discovery Frontier AUC ($D_T$), Multi-Service Coverage ($Q(t)$), Portfolio Resilience ($P$), and Held-Out Disturbance Assays.
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1">
+                      <h4 className="font-semibold text-neutral-200">5. 🎯 Research Missions</h4>
+                      <p className="text-neutral-400 leading-relaxed">
+                        Curated campaign challenges. Solve ecological crises, survive intense stress pulses, and unlock advanced biomaterial fabrication tiers.
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1">
+                      <h4 className="font-semibold text-neutral-200">6. 🏆 High Scores & Sync</h4>
+                      <p className="text-neutral-400 leading-relaxed">
+                        Civilization longevity records, seed rankings, and one-click JSON state export/import to share your worlds with others.
                       </p>
                     </div>
                   </div>
@@ -389,7 +448,7 @@ export const PaperInsightsModal: React.FC<PaperModalProps> = ({ onClose }) => {
                 <div className="space-y-3.5">
                   <div className="p-4 rounded-md bg-neutral-950 border border-neutral-800 space-y-1.5">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-200">
-                      Emergent Agent Phenotypes & Sub-Roles
+                      Emergent Agent Phenotypes & Social Roles
                     </h3>
                     <p className="text-xs text-neutral-400 leading-relaxed">
                       Without predefined specialized prompts, agents spontaneously specialize into distinct behavioral phenotypes based on their local surroundings:
@@ -445,76 +504,88 @@ export const PaperInsightsModal: React.FC<PaperModalProps> = ({ onClose }) => {
                   <div className="p-4 rounded-md bg-neutral-950 border border-neutral-800 space-y-1.5">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-200 flex items-center gap-2">
                       <Cpu className="w-3.5 h-3.5 text-neutral-400" />
-                      Material Workbench & Fabrication System
+                      Material Workbench & Straight-Line Bytecode Guide
                     </h3>
                     <p className="text-xs text-neutral-400 leading-relaxed">
-                      Use the Material Workbench view to formulate novel synthetic artifacts alongside your swarm of autonomous agents:
+                      Every machine is composed of physical materials (Hardware) and a 16-register VM program (Software):
                     </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
                     <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1">
-                      <span className="font-semibold text-neutral-200 block">1. Feedstock Selection</span>
+                      <span className="font-semibold text-neutral-200 block">1. Feedstock Mass Balance</span>
                       <p className="text-neutral-400 leading-relaxed">
-                        Select 2 to 4 raw materials (e.g. Mycelium Matrix, Chitin Polyfiber, Silk Protein) matching the target realm physics.
+                        Mix feedstocks (e.g. Chitin, Fungus, Kelp, Minerals). Total mass normalizes to 1.0. High fungus yields self-healing; high chitin yields toughness.
                       </p>
                     </div>
 
                     <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1">
-                      <span className="font-semibold text-neutral-200 block">2. Bytecode Controller</span>
+                      <span className="font-semibold text-neutral-200 block">2. Processing Sequence</span>
                       <p className="text-neutral-400 leading-relaxed">
-                        Author or fork straight-line VM instructions (e.g. `PULSE_DIFFUSE`, `SAMPLE_GRADIENT`, `FILTER_TOXIN`) to run on each world tick.
+                        Chain operations like WASH ➔ FERMENT ➔ PRESS. Certain sequences trigger synergy bonuses that boost structural quality up to +35%!
                       </p>
                     </div>
 
                     <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1">
-                      <span className="font-semibold text-neutral-200 block">3. Validation Gate</span>
+                      <span className="font-semibold text-neutral-200 block">3. 16-Register Program</span>
                       <p className="text-neutral-400 leading-relaxed">
-                        Run simulated stress tests. Passing recipes deploy directly onto the active ecosystem grid to protect your agents!
+                        Assemble instructions (e.g. `READ_SENSOR moisture`, `CMP_GT`, `ACTUATE remediate`). Registers R0–R15 are clipped to [-4, 4] every tick.
                       </p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {activeInfoSection === 'metrics' && (
+              {activeInfoSection === 'math' && (
                 <div className="space-y-3.5">
                   <div className="p-4 rounded-md bg-neutral-950 border border-neutral-800 space-y-1.5">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-200 flex items-center gap-2">
                       <Activity className="w-3.5 h-3.5 text-neutral-400" />
-                      Understanding Simulation Metrics
+                      Simulation Engine Mathematical Formulations
                     </h3>
                     <p className="text-xs text-neutral-400 leading-relaxed">
-                      Key quantitative metrics tracked across generations in SwarmWorld:
+                      Exact mathematical equations governing the physical simulation and societal metrics:
                     </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
-                    <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1">
-                      <span className="font-semibold text-neutral-200 block">Portfolio Resilience (0.0 to 1.0)</span>
-                      <p className="text-neutral-400 leading-relaxed">
-                        Measures the multi-service protective coverage of all co-existing artifacts across diverse environmental hazard dimensions.
+                    <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1.5 font-mono text-[11px]">
+                      <span className="font-semibold text-neutral-200 block font-sans text-xs">Field Diffusion Equation</span>
+                      <div className="p-2 rounded-sm bg-neutral-900 text-neutral-300">
+                        ∂φ/∂t = D ∇²φ - λ(φ - φ_base) + S_flux
+                      </div>
+                      <p className="text-neutral-400 font-sans text-[11px] leading-relaxed">
+                        Evaluated via 5-point discrete Laplacian stencil across all grid coordinates every world tick.
                       </p>
                     </div>
 
-                    <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1">
-                      <span className="font-semibold text-neutral-200 block">Held-Out Resilience</span>
-                      <p className="text-neutral-400 leading-relaxed">
-                        Tests whether technologies survive and maintain protection across 8 unseen disturbance schedules after removing all agents.
+                    <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1.5 font-mono text-[11px]">
+                      <span className="font-semibold text-neutral-200 block font-sans text-xs">Multi-Service Coverage Q(t)</span>
+                      <div className="p-2 rounded-sm bg-neutral-900 text-neutral-300">
+                        Q(t) = c̄(t) · [1 + min_k c_k(t) / c̄(t)] / 2
+                      </div>
+                      <p className="text-neutral-400 font-sans text-[11px] leading-relaxed">
+                        Penalizes monocultures; rewards balanced societal protection across all 4 environmental hazards.
                       </p>
                     </div>
 
-                    <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1">
-                      <span className="font-semibold text-neutral-200 block">Discovery Frontier AUC</span>
-                      <p className="text-neutral-400 leading-relaxed">
-                        Area Under the Curve of cumulative validated inventions over simulation ticks, reflecting innovation velocity.
+                    <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1.5 font-mono text-[11px]">
+                      <span className="font-semibold text-neutral-200 block font-sans text-xs">Discovery Frontier AUC (D_T)</span>
+                      <div className="p-2 rounded-sm bg-neutral-900 text-neutral-300">
+                        D_T = (1/T) ∫₀ᵀ max_&#123;τ≤t&#125; p(τ) dτ
+                      </div>
+                      <p className="text-neutral-400 font-sans text-[11px] leading-relaxed">
+                        Integrates the cumulative envelope of peak technological performance over civilization lifespan.
                       </p>
                     </div>
 
-                    <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1">
-                      <span className="font-semibold text-neutral-200 block">Lineage Depth & Fork Diversity</span>
-                      <p className="text-neutral-400 leading-relaxed">
-                        Tracks the accumulation of modified code controllers and branching phylogenetic trees up to 12 generations deep.
+                    <div className="p-3.5 rounded-md bg-neutral-950 border border-neutral-800 space-y-1.5 font-mono text-[11px]">
+                      <span className="font-semibold text-neutral-200 block font-sans text-xs">Register VM Constraint</span>
+                      <div className="p-2 rounded-sm bg-neutral-900 text-neutral-300">
+                        R_t = clamp(op(R_s1, R_s2), -4.0, 4.0)
+                      </div>
+                      <p className="text-neutral-400 font-sans text-[11px] leading-relaxed">
+                        16 floating point registers clipped to [-4, 4] with max actuator effort of 0.05/tick.
                       </p>
                     </div>
                   </div>
