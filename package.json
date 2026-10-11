@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "tsx scripts/engine-smoke.ts && tsx scripts/verify-faithful-engine.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
@@ -30,6 +31,7 @@
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.14",
+    "tsx": "^4.23.15",
     "typescript": "~5.8.2",
     "vite": "^6.2.3"
   }

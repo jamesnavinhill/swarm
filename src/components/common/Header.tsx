@@ -24,6 +24,13 @@ import React from 'react';
 import { sound } from '../../audio/SoundSynthesizer';
 import { REALM_CONFIGS } from '../../simulation/data/realmsData';
 import { SwarmEngine } from '../../simulation/engine/SwarmEngine';
+import {
+  getGatewayToken,
+  isLlmAgentsEnabled,
+  setGatewayToken,
+  setLlmAgentsEnabled,
+} from '../../simulation/llm/gatewayClient';
+import { llmScheduler } from '../../simulation/llm/llmScheduler';
 import { ConditionType, RealmType } from '../../types';
 import { useTheme } from './ThemeContext';
 
@@ -67,6 +74,35 @@ export const Header: React.FC<HeaderProps> = ({
   onSpeedChange,
 }) => {
   const { mode, toggleMode, isAudioMuted, toggleAudio } = useTheme();
+
+  // LLM agent proposals (off by default; deterministic heuristic engine is the default path)
+  const [llmEnabled, setLlmEnabled] = React.useState(() => isLlmAgentsEnabled());
+  const [showLlmKey, setShowLlmKey] = React.useState(false);
+  const [llmKeyDraft, setLlmKeyDraft] = React.useState('');
+
+  React.useEffect(() => {
+    if (llmEnabled) llmScheduler.start(engine);
+    return () => llmScheduler.stop();
+  }, [llmEnabled, engine]);
+
+  const handleToggleLlm = () => {
+    if (!llmEnabled && !getGatewayToken()) {
+      setShowLlmKey(true);
+      return;
+    }
+    setLlmAgentsEnabled(!llmEnabled);
+    setLlmEnabled(!llmEnabled);
+    setShowLlmKey(false);
+  };
+
+  const handleSaveLlmKey = () => {
+    if (setGatewayToken(llmKeyDraft)) {
+      setLlmAgentsEnabled(true);
+      setLlmEnabled(true);
+      setShowLlmKey(false);
+      setLlmKeyDraft('');
+    }
+  };
   const config = REALM_CONFIGS[engine.realm];
 
   const handleSoundToggle = () => {
@@ -218,6 +254,19 @@ export const Header: React.FC<HeaderProps> = ({
       </button>
 
       <button
+        id="btn-toggle-llm"
+        onClick={handleToggleLlm}
+        className={`p-1 rounded-sm bg-neutral-900 hover:bg-neutral-800 border transition-colors ${
+          llmEnabled
+            ? 'border-emerald-600 text-emerald-300'
+            : 'border-neutral-800 text-neutral-400 hover:text-neutral-200'
+        }`}
+        title={llmEnabled ? 'LLM agent proposals: ON (click to disable)' : 'LLM agent proposals: OFF (click to enable)'}
+      >
+        <Cpu className="w-3 h-3" />
+      </button>
+
+      <button
         id="btn-toggle-sound"
         onClick={handleSoundToggle}
         className="p-1 rounded-sm bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors"
@@ -239,6 +288,36 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-neutral-800 bg-neutral-950 px-3 sm:px-5 py-2 shrink-0">
+      {showLlmKey && (
+        <div className="absolute right-3 top-11 z-50 w-80 rounded-md border border-neutral-800 bg-neutral-900 p-3 shadow-xl">
+          <p className="text-[11px] font-medium text-neutral-300 mb-2">
+            Agency gateway token (BYOK, stored in this browser only). Free models
+            propose agent plans each macroturn.
+          </p>
+          <input
+            type="password"
+            value={llmKeyDraft}
+            onChange={(e) => setLlmKeyDraft(e.target.value)}
+            placeholder="sk-..."
+            className="w-full rounded-sm border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-200 outline-none focus:border-neutral-600"
+            autoFocus
+          />
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={handleSaveLlmKey}
+              className="rounded-sm bg-emerald-700 hover:bg-emerald-600 px-2.5 py-1 text-[11px] font-medium text-white"
+            >
+              Save &amp; Enable
+            </button>
+            <button
+              onClick={() => setShowLlmKey(false)}
+              className="rounded-sm border border-neutral-800 px-2.5 py-1 text-[11px] text-neutral-400 hover:text-neutral-200"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       <div className="w-full flex flex-col gap-1.5">
         {/* Row 1: Top Bar
             - >= lg: [ Title + Realms ] ... [ Advance Controls ] ... [ Protocol + Icons ]

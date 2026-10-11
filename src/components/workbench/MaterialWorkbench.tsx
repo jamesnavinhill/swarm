@@ -8,6 +8,7 @@ import confetti from 'canvas-confetti';
 import { ArrowRight, CheckCircle2, ChevronRight, Cpu, Dna, FlaskConical, Plus, Sparkles, Trash2, Zap } from 'lucide-react';
 import React, { useState } from 'react';
 import { sound } from '../../audio/SoundSynthesizer';
+import { gatewayChat, getGatewayToken } from '../../simulation/llm/gatewayClient';
 import { REALM_CONFIGS } from '../../simulation/data/realmsData';
 import { evaluateMaterialRecipe, validateInventionCriteria } from '../../simulation/engine/materialEvaluator';
 import { createDefaultRegisters, generateProgramId } from '../../simulation/engine/virtualMachine';
@@ -56,6 +57,8 @@ export const MaterialWorkbench: React.FC<WorkbenchProps> = ({ engine, onArtifact
 
   // Evaluated test result
   const [testedProps, setTestedProps] = useState<MaterialProperties | null>(null);
+  const [aiInsight, setAiInsight] = useState<string | null>(null);
+  const [aiInsightLoading, setAiInsightLoading] = useState(false);
   const [isDeploySuccess, setIsDeploySuccess] = useState<boolean>(false);
 
   const handleAddFeedstock = (type: FeedstockType) => {
@@ -84,6 +87,25 @@ export const MaterialWorkbench: React.FC<WorkbenchProps> = ({ engine, onArtifact
   const handleRemoveOperation = (index: number) => {
     setOperations(operations.filter((_, i) => i !== index));
     sound.playClick();
+  };
+
+  const handleAiInsight = async () => {
+    if (aiInsightLoading || !testedProps) return;
+    setAiInsightLoading(true);
+    setAiInsight(null);
+    try {
+      const text = await gatewayChat({
+        system:
+          'You are a materials-science advisor inside a speculative biofabrication workbench. In at most 90 words, interpret the assay numbers for the described material: what the values imply, one tradeoff, and one concrete improvement to the recipe. Plain prose, no headings.',
+        user: `Material: ${artifactName || 'unnamed'} (${engine.realm}). Claimed function: ${claimedFunction || 'unspecified'}. Feedstocks: ${selectedFeedstocks.join(', ') || 'none'}. Operations: ${operations.join(', ') || 'none'}. Assay: utility=${testedProps.utility.toFixed(3)}, quality=${testedProps.quality.toFixed(3)}, toughness=${testedProps.toughness.toFixed(3)}, permeability=${testedProps.permeability.toFixed(3)}, healing=${testedProps.healing.toFixed(3)}, thermalRegulation=${(testedProps.thermalRegulation ?? 0.3).toFixed(3)}.`,
+        maxTokens: 220,
+      });
+      setAiInsight(text.trim());
+    } catch (err) {
+      setAiInsight(`AI insight failed: ${err instanceof Error ? err.message : 'unknown error'}`);
+    } finally {
+      setAiInsightLoading(false);
+    }
   };
 
   const handleRunTestAssay = () => {
@@ -411,6 +433,22 @@ export const MaterialWorkbench: React.FC<WorkbenchProps> = ({ engine, onArtifact
 
           {testedProps ? (
             <div className="space-y-3">
+              {getGatewayToken() && (
+                <div className="space-y-1.5">
+                  <button
+                    onClick={handleAiInsight}
+                    disabled={aiInsightLoading}
+                    className="px-3 py-1.5 rounded-sm bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-xs font-medium transition-colors border border-neutral-800 disabled:opacity-50"
+                  >
+                    {aiInsightLoading ? 'Thinking…' : 'AI Insight'}
+                  </button>
+                  {aiInsight && (
+                    <p className="text-[11px] leading-relaxed text-neutral-400 whitespace-pre-wrap border border-neutral-800 rounded-sm p-2 bg-neutral-950">
+                      {aiInsight}
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="p-2.5 rounded-sm bg-neutral-950 border border-neutral-800">
                   <div className="text-neutral-500 text-[11px]">Overall Utility</div>

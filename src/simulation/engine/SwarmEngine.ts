@@ -61,6 +61,14 @@ export class SwarmEngine {
    */
   private isolatedMembers?: SwarmEngine[];
 
+  /**
+   * LLM-proposed plans keyed by agent id, injected by the async scheduler
+   * (src/simulation/llm/llmScheduler.ts) and consumed at the agent's next
+   * macroturn replan. Empty in deterministic mode — no behavioral change.
+   */
+  public llmPlans: Map<string, { cycle: number; plan: string[]; message?: string }> = new Map();
+  private llmMessages: Map<string, string> = new Map();
+
   // Running maximum performance for Discovery-Frontier AUC
   private runningPeakPerformance: number = 0;
   private discoveryAreaSum: number = 0;
@@ -522,7 +530,14 @@ export class SwarmEngine {
 
       if (isNewMacroturn && macroturnCycle !== lastPlannedCycle) {
         agent.actionQueue = [];
-        this.generateAgentPlan(agent);
+        const pending = this.llmPlans.get(agent.id);
+        if (pending && pending.cycle === macroturnCycle) {
+          this.llmPlans.delete(agent.id);
+          if (pending.message) this.llmMessages.set(agent.id, pending.message);
+          agent.actionQueue = pending.plan;
+        } else {
+          this.generateAgentPlan(agent);
+        }
         (agent as any).plannedCycle = macroturnCycle;
       }
 
@@ -552,7 +567,10 @@ export class SwarmEngine {
     if (distToArtifact < 4) {
       // Artifact-centered caretaker/forger
       plan.push('INSPECT_ARTIFACT');
-      if (this.condition === 'full_culture' && rnd > 0.4) {
+      // Paper: inheritance via forking persists without direct communication —
+      // full_culture and no_communication both fork; no_explicit_culture does not.
+      const canFork = this.condition === 'full_culture' || this.condition === 'no_communication';
+      if (canFork && rnd > 0.4) {
         plan.push('FORK_PROGRAM');
         plan.push('INSTALL_PROGRAM');
       }
@@ -627,6 +645,7 @@ export class SwarmEngine {
       }
     } else if (action === 'COMMUNICATE_EVIDENCE' && this.condition === 'full_culture') {
       agent.socialInteractions++;
+      const llmMessage = this.llmMessages.get(agent.id);
       const nearby = this.agents.filter(a => a.id !== agent.id && Math.hypot(a.x - agent.x, a.y - agent.y) < 8);
       for (const peer of nearby) {
         peer.socialInteractions++;
@@ -634,9 +653,10 @@ export class SwarmEngine {
           id: `msg_${this.tick}_${agent.id}_to_${peer.id}`,
           tick: this.tick,
           type: 'TEACHING',
-          content: `Shared recipe insight on high-toughness porous binding with ${agent.name}`,
+          content: llmMessage || `Shared recipe insight on high-toughness porous binding with ${agent.name}`,
         });
       }
+      if (llmMessage) this.llmMessages.delete(agent.id);
     }
   }
 
