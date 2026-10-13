@@ -65,7 +65,7 @@ export const gatewayChat = async (options: ChatOptions): Promise<string> => {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'in-mercury-2',
+      model: 'nv-z-ai-glm-5-3-flash',
       messages: [
         { role: 'system', content: options.system },
         { role: 'user', content: options.user },

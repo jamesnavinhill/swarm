@@ -34,7 +34,7 @@ Instead of human-curated recipes or central coordination, agents cooperate throu
 The simulation is fully playable with the deterministic heuristic planner (zero configuration, bit-identical replays — verified by `bun run test`). To complete the paper's proposal–consequence separation, agents can additionally receive **LLM-proposed plans** at each macroturn:
 
 - Toggle via the header `Cpu` button and paste an Agency gateway token (BYOK, stored in this browser only).
-- Proposals use the gateway's free `in-mercury-2` model; requests are rate-limited (≥3s apart, ≤2 agents per sweep) and validated against the engine's exact action vocabulary plus the realm condition gates (`COMMUNICATE_EVIDENCE` only in full_culture, forking in full_culture/no_communication).
+- Proposals use the gateway's free `nv-z-ai-glm-5-3-flash` model; requests are rate-limited (≥3s apart, ≤2 agents per sweep) and validated against the engine's exact action vocabulary plus the realm condition gates (`COMMUNICATE_EVIDENCE` only in full_culture, forking in full_culture/no_communication).
 - The consequence engine never changes: proposals only fill `SwarmEngine.llmPlans`, consumed once at the agent's next replan; when disabled or on failure the heuristic plan is used.
 - **AI Insight** in the Material Workbench explains assay results for the current recipe (same gateway).
 
